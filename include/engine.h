@@ -38,6 +38,14 @@ enum VarType
    VT_NOREGISTER
 };
 
+// entity search type
+enum EntitySearchType
+{
+   ENTITY_SEARCH_CLASSNAME,
+   ENTITY_SEARCH_TARGET,
+   ENTITY_SEARCH_SPHERE
+};
+
 // netmessage functions
 enum NetMsgId
 {
@@ -88,11 +96,59 @@ struct MessageBlock
    int regMsgs[NETMSG_NUM];
 };
 
+// referential vector
+struct RefVector
+{
+   Vector forward, up, right;
+};
+
+// game event listener
+class IGameEvents
+{
+public:
+
+   // called when client connects the server
+   virtual void OnClientConnected (edict_t *ent, const char *addr) = 0;
+
+   // called when client disconnects the server
+   virtual void OnClientDisconnect (edict_t *ent) = 0;
+
+   // called when setinfo buffer get's changed
+   virtual void OnClientUserInfoChanged (edict_t *ent, char *infobuffer) = 0;
+
+   // called when client command gets issued
+   virtual bool OnClientCommand (edict_t *ent, const char *command, const char *arg1, const char *arg2, const char *arg3, const char *arg4, const char *arg5, const char *arg6) = 0;
+
+   // called right after initalization of gamedll
+   virtual void OnGameInit (void) = 0;
+
+   // called when bounding boxes of entities starts to intesects
+   virtual void OnEntitiesTouch (edict_t *ent1, edict_t *ent2) = 0;
+
+   // called when entity gets spawned
+   virtual void OnEntitySpawned (edict_t *ent) = 0;
+
+   // called when clientdata get's updated (used for fakeping)
+   virtual void OnUpdateClientData (edict_t *ent) = 0;
+
+   // called every frame
+   virtual void OnEngineFrame (bool isPost) = 0;
+
+   // called when server gets activated
+   virtual void OnServerActivated (bool isPost) = 0;
+
+   // called when server gets deactivated
+   virtual void OnServerDeactivated (void) = 0;
+
+   // called when server changes level
+   virtual void OnChangeLevel (void) = 0;
+};
+
 // provides utility functions to not call original engine (less call-cost)
 class Engine : public Singleton <Engine>
 {
 private:
-   short m_drawModels[DRAW_NUM];
+   int m_drawModels[DRAW_NUM];
 
    // bot client command
    bool m_isBotCommand;
@@ -300,6 +356,11 @@ public:
          SetOngoingMessageId (msgId);
    }
 
+   // builds global referential vectors
+   FORCEINLINE void MakeVectors (const Vector &in)
+   {
+      in.BuildVectors (&g_pGlobals->v_forward, &g_pGlobals->v_right, &g_pGlobals->v_up);
+   }
    // static utility functions
 public:
    static const char *ExtractSingleField (const char *string, int id, bool terminate);
@@ -321,4 +382,33 @@ public:
    FORCEINLINE void SetFloat (float val) { m_eptr->value = val; }
    FORCEINLINE void SetInt (int val) { SetFloat (static_cast <float> (val)); }
    FORCEINLINE void SetString (const char *val) { g_engfuncs.pfnCvar_DirectSet (m_eptr, const_cast <char *> (val)); }
+};
+
+// search entity
+class EntityIndexer
+{
+private:
+   edict_t *m_storedEntity;
+
+   const char *m_value;
+   const char *m_field;
+
+   EntitySearchType m_searchType;
+   Vector m_org;
+   float m_sphereRadius;
+
+public:
+   EntityIndexer (EntitySearchType type, const char *value = nullptr, const Vector &org = Vector::GetZero (), float sphereRadius = 0.0f) : m_storedEntity (nullptr), m_org (Vector::GetZero ()), m_sphereRadius (0.0f)
+   {
+      StartNewSearch (type, value, org, sphereRadius);
+   }
+
+   FORCEINLINE edict_t *GetCurrentEntity (void)
+   {
+      return m_storedEntity;
+   }
+
+
+   void StartNewSearch (EntitySearchType type, const char *value = nullptr, const Vector &org = Vector::GetZero (), float sphereRadius = 0.0f);
+   bool FindNext (void);
 };

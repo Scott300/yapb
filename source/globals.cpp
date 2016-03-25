@@ -9,19 +9,10 @@
 
 #include <core.h>
 
-// forward for super-globals
-//NetworkMsg netmsg;
-//Localizer locale;
-//Waypoint waypoints;
-//BotManager bots;
-//Engine engine;
-
 bool g_canSayBombPlanted = true;
-bool g_isMetamod = false;
 bool g_radioInsteadVoice = false;
 bool g_roundEnded = true;
 bool g_botsCanPause = false;
-bool g_sendAudioFinished = true;
 bool g_bombPlanted = false;
 bool g_bombSayString = false;
 bool g_isCommencing = false;
@@ -53,31 +44,19 @@ int g_highestDamageCT = 1;
 int g_highestDamageT = 1;
 int g_highestKills = 1;
 
-
 Array <Array <String> > g_chatFactory;
 Array <Array <ChatterItem> > g_chatterFactory;
 Array <BotName> g_botNames;
 Array <KeywordFactory> g_replyFactory;
 RandomSequenceOfUnique Random;
-Library *g_gameLib = NULL;
+Library *g_gameLib = nullptr;
 
-meta_globals_t *gpMetaGlobals = NULL;
-gamedll_funcs_t *gpGamedllFuncs = NULL;
-mutil_funcs_t *gpMetaUtilFuncs = NULL;
-
-gamefuncs_t g_functionTable;
-EntityAPI_t g_entityAPI = NULL;
-NewEntityAPI_t g_getNewEntityAPI = NULL;
-BlendAPI_t g_serverBlendingAPI = NULL;
-FuncPointers_t g_funcPointers = NULL;
-
-enginefuncs_t g_engfuncs;
 Client g_clients[MAX_ENGINE_PLAYERS];
 WeaponProperty g_weaponDefs[MAX_WEAPONS + 1];
 
-edict_t *g_hostEntity = NULL;
-globalvars_t *g_pGlobals = NULL;
-Experience *g_experienceData = NULL;
+edict_t *g_hostEntity = nullptr;
+globalvars_t *g_pGlobals = nullptr;
+Experience *g_experienceData = nullptr;
 
 // default tables for personality weapon preferences, overridden by weapons.cfg
 int g_normalWeaponPrefs[NUM_WEAPONS] =
@@ -102,32 +81,6 @@ int *g_weaponPrefs[] =
    g_carefulWeaponPrefs
 };
 
-// metamod engine & dllapi function tables
-metamod_funcs_t gMetaFunctionTable =
-{
-   NULL, // pfnGetEntityAPI ()
-   NULL, // pfnGetEntityAPI_Post ()
-   GetEntityAPI2, // pfnGetEntityAPI2 ()
-   GetEntityAPI2_Post, // pfnGetEntityAPI2_Post ()
-   NULL, // pfnGetNewDLLFunctions ()
-   NULL, // pfnGetNewDLLFunctions_Post ()
-   GetEngineFunctions, // pfnGetEngineFunctions ()
-   GetEngineFunctions_Post, // pfnGetEngineFunctions_Post ()
-};
-
-// metamod plugin information
-plugin_info_t Plugin_info =
-{
-   META_INTERFACE_VERSION, // interface version
-   PRODUCT_NAME, // plugin name
-   PRODUCT_VERSION, // plugin version
-   PRODUCT_DATE, // date of creation
-   PRODUCT_AUTHOR, // plugin author
-   PRODUCT_URL, // plugin URL
-   PRODUCT_LOGTAG, // plugin logtag
-   PT_CHANGELEVEL, // when loadable
-   PT_ANYTIME, // when unloadable
-};
 
 // table with all available actions for the bots (filtered in & out in Bot::SetConditions) some of them have subactions included
 TaskItem g_taskFilters[] =
@@ -375,25 +328,25 @@ MenuText g_menus[21] =
    // kickmenu #1
    {
       0x0,
-      NULL,
+      nullptr,
    },
 
    // kickmenu #2
    {
       0x0,
-      NULL,
+      nullptr,
    },
 
    // kickmenu #3
    {
       0x0,
-      NULL,
+      nullptr,
    },
 
    // kickmenu #4
    {
       0x0,
-      NULL,
+      nullptr,
    },
 
    // command menu

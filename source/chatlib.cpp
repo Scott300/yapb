@@ -22,7 +22,7 @@ void StripTags (char *buffer)
    int length = strlen (buffer); // get length of string
 
    // foreach known tag...
-   for (index = 0; index < ARRAYSIZE_HLSDK (tagOpen); index++)
+   for (index = 0; index < SIZEOF_ARRAY (tagOpen); index++)
    {
       fieldStart = strstr (buffer, tagOpen[index]) - buffer; // look for a tag start
 
@@ -52,7 +52,7 @@ void StripTags (char *buffer)
       int tagLength = 0;
 
       // strip just the tag part...
-      for (index = 0; index < ARRAYSIZE_HLSDK (tagOpen); index++)
+      for (index = 0; index < SIZEOF_ARRAY (tagOpen); index++)
       {
          fieldStart = strstr (buffer, tagOpen[index]) - buffer; // look for a tag start
 
@@ -102,7 +102,7 @@ char *HumanizeName (char *name)
    if (Random.Long (1, 100) <= 6)
    {
       for (int i = 0; i < static_cast <int> (strlen (outputName)); i++)
-         outputName[i] = tolower (outputName[i]); // to lower case
+         outputName[i] = static_cast <char> (tolower (outputName[i])); // to lower case
    }
    return &outputName[0]; // return terminated string
 }
@@ -119,7 +119,7 @@ void HumanizeChat (char *buffer)
    if (Random.Long (1, 100) <= 4)
    {
       for (i = 0; i < length; i++)
-         buffer[i] = tolower (buffer[i]); // switch to lowercase
+         buffer[i] = static_cast <char> (tolower (buffer[i])); // switch to lowercase
    }
 
    if (length > 15)
@@ -156,21 +156,21 @@ void Bot::PrepareChatMessage (char *text)
    if (!yb_chat.GetBool () || IsNullString (text))
       return;
 
-   #define ASSIGN_TALK_ENTITY() if (!engine.IsNullEntity (talkEntity)) strncat (m_tempStrings, HumanizeName (const_cast <char *> (STRING (talkEntity->v.netname))), SIZEOF_CHAR (m_tempStrings))
+   #define ASSIGN_TALK_ENTITY() if (!engine.IsNullEntity (talkEntity)) strncat (m_tempStrings, HumanizeName (const_cast <char *> (ValveString::Get (talkEntity->v.netname))), SIZEOF_CHAR (m_tempStrings))
 
    memset (&m_tempStrings, 0, sizeof (m_tempStrings));
 
    char *textStart = text;
    char *pattern = text;
 
-   edict_t *talkEntity = NULL;
+   edict_t *talkEntity = nullptr;
 
-   while (pattern != NULL)
+   while (pattern != nullptr)
    {
       // all replacement placeholders start with a %
       pattern = strstr (textStart, "%");
 
-      if (pattern != NULL)
+      if (pattern != nullptr)
       {
          int length = pattern - textStart;
 
@@ -315,7 +315,7 @@ void Bot::PrepareChatMessage (char *text)
       }
    }
 
-   if (textStart != NULL)
+   if (textStart != nullptr)
    {
       // let the bots make some mistakes...
       char tempString[160];
@@ -338,7 +338,7 @@ bool CheckKeywords (char *tempMessage, char *reply)
       FOR_EACH_AE (g_replyFactory[i].keywords, j)
       {
          // check is keyword has occurred in message
-         if (strstr (tempMessage, g_replyFactory[i].keywords[j].GetBuffer ()) != NULL)
+         if (strstr (tempMessage, g_replyFactory[i].keywords[j].GetBuffer ()) != nullptr)
          {
             Array <String> &replies = g_replyFactory[i].usedReplies;
 
@@ -351,7 +351,7 @@ bool CheckKeywords (char *tempMessage, char *reply)
             // don't say this twice
             FOR_EACH_AE (replies, k)
             {
-               if (strstr (replies[k].GetBuffer (), generatedReply) != NULL)
+               if (strstr (replies[k].GetBuffer (), generatedReply) != nullptr)
                   replyUsed = true;
             }
 
@@ -385,7 +385,7 @@ bool Bot::ParseChat (char *reply)
 
    // text to uppercase for keyword parsing
    for (int i = 0; i < static_cast <int> (strlen (tempMessage)); i++)
-      tempMessage[i] = toupper (tempMessage[i]);
+      tempMessage[i] = static_cast <char> (toupper (tempMessage[i]));
 
    return CheckKeywords (tempMessage, reply);
 }

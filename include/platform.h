@@ -9,6 +9,16 @@
 
 #pragma once
 
+#include <stdio.h>
+#include <memory.h>
+#include <assert.h>
+#include <ctype.h>
+#include <limits.h>
+#include <float.h>
+#include <time.h>
+
+#include <corelib.h>
+
 // detects the build platform
 #if defined (__linux__) || defined (__debian__) || defined (__linux)
    #define PLATFORM_LINUX 1
@@ -40,9 +50,21 @@
    #include <direct.h>
    #include <string.h>
 
-   #define DLL_ENTRYPOINT int STDCALL DllMain (HINSTANCE, DWORD dwReason, LPVOID)
-   #define DLL_DETACHING (dwReason == DLL_PROCESS_DETACH)
-   #define DLL_RETENTRY return TRUE
+   // exclude windows bloatware
+   #define WIN32_LEAN_AND_MEAN
+   #define NOWINRES
+   #define NOSERVICE
+   #define NOMCX
+   #define NOIME
+
+   #include "windows.h"
+   #include "winsock2.h"
+
+   #define DLL_ENTRYPOINT int __stdcall DllMain (HINSTANCE, DWORD reason, LPVOID)
+   #define DLL_DETACHING (reason == DLL_PROCESS_DETACH)
+   #define DLL_RETENTRY return 1
+
+   #define STDCALL __stdcall
 
    #if defined (COMPILER_VISUALC)
       #define DLL_GIVEFNPTRSTODLL extern "C" void STDCALL
@@ -56,16 +78,12 @@
       #pragma comment (linker, "/SECTION:.data,RW")
    #endif
 
-   typedef int (FAR *EntityAPI_t) (gamefuncs_t *, int);
-   typedef int (FAR *NewEntityAPI_t) (newgamefuncs_t *, int *);
-   typedef int (FAR *BlendAPI_t) (int, void **, void *, float (*)[3][4], float (*)[128][3][4]);
-   typedef void (STDCALL *FuncPointers_t) (enginefuncs_t *, globalvars_t *);
-   typedef void (FAR *EntityPtr_t) (entvars_t *);
-
 #elif defined (PLATFORM_LINUX) || defined (PLATFORM_OSX)
 
    #include <unistd.h>
    #include <dlfcn.h>
+   #include <limits.h>
+   #include <stdarg.h>
    #include <errno.h>
    #include <fcntl.h>
    #include <sys/stat.h>
@@ -77,20 +95,13 @@
    #include <arpa/inet.h>
 
    #define DLL_ENTRYPOINT __attribute__((destructor))  void _fini (void)
-   #define DLL_DETACHING TRUE
+   #define DLL_DETACHING 1
    #define DLL_RETENTRY return
    #define DLL_GIVEFNPTRSTODLL extern "C" void __attribute__((visibility("default")))
 
    #if defined (__ANDROID__)
-   #define PLATFORM_ANDROID 1
+      #define PLATFORM_ANDROID 1
    #endif
-
-   typedef int (*EntityAPI_t) (gamefuncs_t *, int);
-   typedef int (*NewEntityAPI_t) (newgamefuncs_t *, int *);
-   typedef int (*BlendAPI_t) (int, void **, void *, float (*)[3][4], float (*)[128][3][4]);
-   typedef void (*FuncPointers_t) (enginefuncs_t *, globalvars_t *);
-   typedef void (*EntityPtr_t) (entvars_t *);
-
 #else
    #error "Platform unrecognized."
 #endif
@@ -105,9 +116,9 @@ public:
 
    Library (const char *fileName)
    {
-      m_ptr = NULL;
+      m_ptr = nullptr;
 
-      if (fileName == NULL)
+      if (fileName == nullptr)
          return;
 
       LoadLib (fileName);
@@ -119,7 +130,7 @@ public:
          return;
 
 #ifdef PLATFORM_WIN32
-      FreeLibrary ((HMODULE) m_ptr);
+      FreeLibrary (reinterpret_cast <HMODULE> (m_ptr));
 #else
       dlclose (m_ptr);
 #endif
@@ -140,7 +151,7 @@ public:
    template <typename R> R GetFuncAddr (const char *function)
    {
       if (!IsLoaded ())
-         return NULL;
+         return nullptr;
 
 #ifdef PLATFORM_WIN32
       return reinterpret_cast <R> (GetProcAddress (static_cast <HMODULE> (m_ptr), function));
@@ -156,6 +167,12 @@ public:
 
    inline bool IsLoaded (void) const
    {
-      return m_ptr != NULL;
+      return m_ptr != nullptr;
    }
 };
+
+#define BOT_MEMORY_FAILURE() AddLogEntry (true, LL_FATAL, "Memory Allocation Failed!\nFile: %s (Line: %d)", __FILE__, __LINE__)
+#define BOT_ASSERT(expr) if (!(expr)) { AddLogEntry (true, LL_FATAL, "Assertion Failed! (Expression: %s, File: %s, Line: %d)", #expr, __FILE__, __LINE__); }
+
+#include <goldsrc.h>
+

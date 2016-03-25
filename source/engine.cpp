@@ -11,8 +11,8 @@
 
 Engine::Engine (void)
 {
-   m_startEntity = NULL;
-   m_localEntity = NULL;
+   m_startEntity = nullptr;
+   m_localEntity = nullptr;
 
    m_language.RemoveAll ();
    ResetMessageCapture ();
@@ -41,10 +41,10 @@ void Engine::Precache (edict_t *startEntity)
 {
    // this function precaches needed models and initialize class variables
 
-   m_drawModels[DRAW_SIMPLE] = PRECACHE_MODEL (ENGINE_STR ("sprites/laserbeam.spr"));
-   m_drawModels[DRAW_ARROW] = PRECACHE_MODEL (ENGINE_STR ("sprites/arrow1.spr"));
+   m_drawModels[DRAW_SIMPLE] = g_engfuncs.pfnPrecacheModel (ValveString::Alloc ("sprites/laserbeam.spr"));
+   m_drawModels[DRAW_ARROW] = g_engfuncs.pfnPrecacheModel (ValveString::Alloc ("sprites/arrow1.spr"));
 
-   m_localEntity = NULL;
+   m_localEntity = nullptr;
    m_startEntity = startEntity;
 }
 
@@ -79,10 +79,10 @@ void Engine::ChatPrintf (const char *fmt, ...)
    }
    strcat (string, "\n");
 
-   MESSAGE_BEGIN (MSG_BROADCAST, FindMessageId (NETMSG_TEXTMSG));
-      WRITE_BYTE (HUD_PRINTTALK);
-      WRITE_STRING (string);
-   MESSAGE_END ();
+   MessageWriter::Begin (MSG_BROADCAST, FindMessageId (NETMSG_TEXTMSG))
+      .Byte (HUD_PRINTTALK)
+      .Str (string)
+      .End ();
 }
 
 void Engine::CenterPrintf (const char *fmt, ...)
@@ -101,10 +101,10 @@ void Engine::CenterPrintf (const char *fmt, ...)
    }
    strcat (string, "\n");
 
-   MESSAGE_BEGIN (MSG_BROADCAST, FindMessageId (NETMSG_TEXTMSG));
-      WRITE_BYTE (HUD_PRINTCENTER);
-      WRITE_STRING (string);
-   MESSAGE_END ();
+   MessageWriter::Begin (MSG_BROADCAST, FindMessageId (NETMSG_TEXTMSG))
+      .Byte (HUD_PRINTCENTER)
+      .Str (string)
+      .End ();
 }
 
 void Engine::ClientPrintf (edict_t *ent, const char *fmt, ...)
@@ -132,30 +132,28 @@ void Engine::DrawLine (edict_t * ent, const Vector &start, const Vector &end, in
    // which is supposed to last life tenths seconds, and having the color defined by RGB.
 
    if (!IsValidPlayer (ent))
-      return; // reliability check
+      return;
 
-   MESSAGE_BEGIN (MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, NULL, ent);
-      WRITE_BYTE (TE_BEAMPOINTS);
-      WRITE_COORD (end.x);
-      WRITE_COORD (end.y);
-      WRITE_COORD (end.z);
-      WRITE_COORD (start.x);
-      WRITE_COORD (start.y);
-      WRITE_COORD (start.z);
-      WRITE_SHORT (m_drawModels[type]);
-      WRITE_BYTE (0); // framestart
-      WRITE_BYTE (10); // framerate
-      WRITE_BYTE (life); // life in 0.1's
-      WRITE_BYTE (width); // width
-      WRITE_BYTE (noise); // noise
-
-      WRITE_BYTE (red); // r, g, b
-      WRITE_BYTE (green); // r, g, b
-      WRITE_BYTE (blue); // r, g, b
-
-      WRITE_BYTE (brightness); // brightness
-      WRITE_BYTE (speed); // speed
-   MESSAGE_END ();
+   MessageWriter::Begin (MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, nullptr, ent)
+      .Byte (TE_BEAMPOINTS)
+      .Coord (end.x)
+      .Coord (end.y)
+      .Coord (end.z)
+      .Coord (start.x)
+      .Coord (start.y)
+      .Coord (start.z)
+      .Short (m_drawModels[type])
+      .Byte (0)
+      .Byte (10)
+      .Byte (life)
+      .Byte (width)
+      .Byte (noise)
+      .Byte (red)
+      .Byte (green)
+      .Byte (blue)
+      .Byte (brightness)
+      .Byte (speed)
+      .End ();
 }
 
 void Engine::TestLine (const Vector &start, const Vector &end, int ignoreFlags, edict_t *ignoreEntity, TraceResult *ptr)
@@ -192,7 +190,7 @@ void Engine::TestHull (const Vector &start, const Vector &end, int ignoreFlags, 
    // function allows to specify whether the trace starts "inside" an entity's polygonal model,
    // and if so, to specify that entity in ignoreEntity in order to ignore it as an obstacle.
 
-   (*g_engfuncs.pfnTraceHull) (start, end, (ignoreFlags & TRACE_IGNORE_MONSTERS), hullNumber, ignoreEntity, ptr);
+   g_engfuncs.pfnTraceHull (start, end, (ignoreFlags & TRACE_IGNORE_MONSTERS), hullNumber, ignoreEntity, ptr);
 }
 
 float Engine::GetWaveLength (const char *fileName)
@@ -207,7 +205,7 @@ float Engine::GetWaveLength (const char *fileName)
       return 0.0f;
 
    // check if we have engine function for this
-   if (g_engfuncs.pfnGetApproxWavePlayLen != NULL)
+   if (g_engfuncs.pfnGetApproxWavePlayLen != nullptr)
    {
       fp.Close ();
       return g_engfuncs.pfnGetApproxWavePlayLen (filePath) / 1000.0f;
@@ -221,12 +219,12 @@ float Engine::GetWaveLength (const char *fileName)
       char chunkID[4];
       char formatChunkId[4];
       unsigned long formatChunkLength;
-      unsigned short dummy;
-      unsigned short channels;
+      uint16 dummy;
+      uint16 channels;
       unsigned long sampleRate;
       unsigned long bytesPerSecond;
-      unsigned short bytesPerSample;
-      unsigned short bitsPerSample;
+      uint16 bytesPerSample;
+      uint16 bitsPerSample;
       char dataChunkId[4];
       unsigned long dataChunkLength;
    } waveHdr;
@@ -326,7 +324,7 @@ void Engine::RegisterCmd (const char * command, void func (void))
 
 void Engine::EmitSound (edict_t *ent, const char *sound)
 {
-   g_engfuncs.pfnEmitSound (ent, CHAN_WEAPON, sound, 1.0f, ATTN_NORM, 0, 100.0f);
+   g_engfuncs.pfnEmitSound (ent, CHAN_WEAPON, sound, 1.0f, ATTN_NORM, 0, 100);
 }
 
 void Engine::IssueBotCommand (edict_t *ent, const char *fmt, ...)
@@ -399,7 +397,7 @@ void Engine::IssueBotCommand (edict_t *ent, const char *fmt, ...)
 
          m_argumentCount++;
       }
-      MDLL_ClientCommand (ent);
+      gs.SendClientCommands (ent);
    }
    m_isBotCommand = false;
 
@@ -518,7 +516,7 @@ void Engine::PushRegisteredConVarsToEngine (bool gameVars)
       {
          ptr->self->m_eptr = g_engfuncs.pfnCVarGetPointer (ptr->reg.name);
 
-         if (ptr->self->m_eptr == NULL)
+         if (ptr->self->m_eptr == nullptr)
          {
             g_engfuncs.pfnCVarRegister (&ptr->reg);
             ptr->self->m_eptr = g_engfuncs.pfnCVarGetPointer (ptr->reg.name);
@@ -528,12 +526,12 @@ void Engine::PushRegisteredConVarsToEngine (bool gameVars)
       {
          ptr->self->m_eptr = g_engfuncs.pfnCVarGetPointer (ptr->reg.name);
 
-         if (ptr->regMissing && ptr->self->m_eptr == NULL)
+         if (ptr->regMissing && ptr->self->m_eptr == nullptr)
          {
             g_engfuncs.pfnCVarRegister (&ptr->reg);
             ptr->self->m_eptr = g_engfuncs.pfnCVarGetPointer (ptr->reg.name);
          }
-         InternalAssert (ptr->self->m_eptr != NULL); // ensure game var exists
+         BOT_ASSERT (ptr->self->m_eptr != nullptr); // ensure game var exists
       }
    }
 }
@@ -590,8 +588,8 @@ void Engine::ProcessMessageCapture (void *ptr)
       return;
 
    // some needed variables
-   static byte r, g, b;
-   static byte enabled;
+   static uint8 r, g, b;
+   static uint8 enabled;
 
    static int damageArmor, damageTaken, damageBits;
    static int killerIndex, victimIndex, playerIndex;
@@ -606,7 +604,7 @@ void Engine::ProcessMessageCapture (void *ptr)
 
    char *strVal = reinterpret_cast <char *> (ptr);
    int intVal = *reinterpret_cast <int *> (ptr);
-   unsigned char byteVal = *reinterpret_cast <unsigned char *> (ptr);
+   uint8 byteVal = *reinterpret_cast <uint8 *> (ptr);
 
    // now starts of network message execution
    switch (m_msgBlock.msg)
@@ -692,7 +690,7 @@ void Engine::ProcessMessageCapture (void *ptr)
       break;
 
    case NETMSG_CURWEAPON:
-      // this message is sent when a weapon is selected (either by the bot chosing a weapon or by the server auto assigning the bot a weapon). In CS it's also called when Ammo is increased/decreased
+      // this message is sent when a weapon is selected (either by the bot choosing a weapon or by the server auto assigning the bot a weapon). In CS it's also called when Ammo is increased/decreased
 
       switch (m_msgBlock.state)
       {
@@ -770,7 +768,7 @@ void Engine::ProcessMessageCapture (void *ptr)
       case 2:
          damageBits = intVal;
 
-         if (bot != NULL && (damageArmor > 0 || damageTaken > 0))
+         if (bot != nullptr && (damageArmor > 0 || damageTaken > 0))
             bot->TakeDamage (bot->pev->dmg_inflictor, damageTaken, damageArmor, damageBits);
          break;
       }
@@ -836,14 +834,14 @@ void Engine::ProcessMessageCapture (void *ptr)
                // need to send congrats on well placed shot
                for (int i = 0; i < MaxClients (); i++)
                {
-                  Bot *notify = bots.GetBot (i);
+                  Bot *bot = bots.GetBot (i);
 
-                  if (notify != NULL && notify->m_notKilled && killer != notify->GetEntity () && notify->EntityIsVisible (victim->v.origin) && GetTeam (killer) == notify->m_team && GetTeam (killer) != GetTeam (victim))
+                  if (bot != nullptr && bot->m_notKilled && killer != bot->GetEntity () && bot->EntityIsVisible (victim->v.origin) && GetTeam (killer) == bot->m_team && GetTeam (killer) != GetTeam (victim))
                   {
                      if (killer == g_hostEntity)
-                        notify->HandleChatterMessage ("#Bot_NiceShotCommander");
+                        bot->HandleChatterMessage ("#Bot_NiceShotCommander");
                      else
-                        notify->HandleChatterMessage ("#Bot_NiceShotPall");
+                        bot->HandleChatterMessage ("#Bot_NiceShotPall");
 
                      break;
                   }
@@ -853,29 +851,29 @@ void Engine::ProcessMessageCapture (void *ptr)
             // notice nearby to victim teammates, that attacker is near
             for (int i = 0; i < MaxClients (); i++)
             {
-               Bot *notify = bots.GetBot (i);
+               Bot *bot = bots.GetBot (i);
 
-               if (notify != NULL && notify->m_seeEnemyTime + 2.0f < Time () && notify->m_notKilled && notify->m_team == GetTeam (victim) && IsVisible (killer->v.origin, notify->GetEntity ()) && IsNullEntity (notify->m_enemy) && GetTeam (killer) != GetTeam (victim))
+               if (bot != nullptr && bot->m_seeEnemyTime + 2.0f < Time () && bot->m_notKilled && bot->m_team == GetTeam (victim) && IsVisible (killer->v.origin, bot->GetEntity ()) && IsNullEntity (bot->m_enemy) && GetTeam (killer) != GetTeam (victim))
                {
-                  notify->m_actualReactionTime = 0.0f;
-                  notify->m_seeEnemyTime = Time ();
-                  notify->m_enemy = killer;
-                  notify->m_lastEnemy = killer;
-                  notify->m_lastEnemyOrigin = killer->v.origin;
+                  bot->m_actualReactionTime = 0.0f;
+                  bot->m_seeEnemyTime = Time ();
+                  bot->m_enemy = killer;
+                  bot->m_lastEnemy = killer;
+                  bot->m_lastEnemyOrigin = killer->v.origin;
                }
             }
 
-            Bot *notify = bots.GetBot (killer);
+            Bot *bot = bots.GetBot (killer);
 
             // is this message about a bot who killed somebody?
-            if (notify != NULL)
-               notify->m_lastVictim = victim;
+            if (bot != nullptr)
+               bot->m_lastVictim = victim;
 
             else // did a human kill a bot on his team?
             {
                Bot *target = bots.GetBot (victim);
 
-               if (target != NULL)
+               if (target != nullptr)
                {
                   if (GetTeam (killer) == GetTeam (victim))
                      target->m_voteKickIndex = killerIndex;
@@ -927,85 +925,85 @@ void Engine::ProcessMessageCapture (void *ptr)
    case NETMSG_TEXTMSG:
       if (m_msgBlock.state == 1)
       {
-         if (FStrEq (strVal, "#CTs_Win") ||
-            FStrEq (strVal, "#Bomb_Defused") ||
-            FStrEq (strVal, "#Terrorists_Win") ||
-            FStrEq (strVal, "#Round_Draw") ||
-            FStrEq (strVal, "#All_Hostages_Rescued") ||
-            FStrEq (strVal, "#Target_Saved") ||
-            FStrEq (strVal, "#Hostages_Not_Rescued") ||
-            FStrEq (strVal, "#Terrorists_Not_Escaped") ||
-            FStrEq (strVal, "#VIP_Not_Escaped") ||
-            FStrEq (strVal, "#Escaping_Terrorists_Neutralized") ||
-            FStrEq (strVal, "#VIP_Assassinated") ||
-            FStrEq (strVal, "#VIP_Escaped") ||
-            FStrEq (strVal, "#Terrorists_Escaped") ||
-            FStrEq (strVal, "#CTs_PreventEscape") ||
-            FStrEq (strVal, "#Target_Bombed") ||
-            FStrEq (strVal, "#Game_Commencing") ||
-            FStrEq (strVal, "#Game_will_restart_in"))
+         if (strcmp (strVal, "#CTs_Win") == 0 ||
+            strcmp (strVal, "#Bomb_Defused") == 0 ||
+            strcmp (strVal, "#Terrorists_Win") == 0 ||
+            strcmp (strVal, "#Round_Draw") == 0 ||
+            strcmp (strVal, "#All_Hostages_Rescued") == 0 ||
+            strcmp (strVal, "#Target_Saved") == 0 ||
+            strcmp (strVal, "#Hostages_Not_Rescued") == 0 ||
+            strcmp (strVal, "#Terrorists_Not_Escaped") == 0 ||
+            strcmp (strVal, "#VIP_Not_Escaped") == 0 ||
+            strcmp (strVal, "#Escaping_Terrorists_Neutralized") == 0 ||
+            strcmp (strVal, "#VIP_Assassinated") == 0 ||
+            strcmp (strVal, "#VIP_Escaped") == 0 ||
+            strcmp (strVal, "#Terrorists_Escaped") == 0 ||
+            strcmp (strVal, "#CTs_PreventEscape") == 0 ||
+            strcmp (strVal, "#Target_Bombed") == 0 ||
+            strcmp (strVal, "#Game_Commencing") == 0 ||
+            strcmp (strVal, "#Game_will_restart_in") == 0)
          {
             g_roundEnded = true;
 
-            if (FStrEq (strVal, "#Game_Commencing"))
+            if (strcmp (strVal, "#Game_Commencing") == 0)
                g_isCommencing = true;
 
-            if (FStrEq (strVal, "#CTs_Win"))
+            if (strcmp (strVal, "#CTs_Win") == 0)
             {
                bots.SetLastWinner (CT); // update last winner for economics
 
                if (yb_communication_type.GetInt () == 2)
                {
-                  Bot *notify = bots.FindOneValidAliveBot ();
+                  Bot *bot = bots.FindOneValidAliveBot ();
 
-                  if (notify != NULL && notify->m_notKilled)
-                     notify->HandleChatterMessage (strVal);
+                  if (bot != nullptr && bot->m_notKilled)
+                     bot->HandleChatterMessage (strVal);
                }
             }
 
-            if (FStrEq (strVal, "#Game_will_restart_in"))
+            if (strcmp (strVal, "#Game_will_restart_in") == 0)
             {
                bots.CheckTeamEconomics (CT, true);
                bots.CheckTeamEconomics (TERRORIST, true);
             }
 
-            if (FStrEq (strVal, "#Terrorists_Win"))
+            if (strcmp (strVal, "#Terrorists_Win") == 0)
             {
                bots.SetLastWinner (TERRORIST); // update last winner for economics
 
                if (yb_communication_type.GetInt () == 2)
                {
-                  Bot *notify = bots.FindOneValidAliveBot ();
+                  Bot *bot = bots.FindOneValidAliveBot ();
 
-                  if (notify != NULL && notify->m_notKilled)
-                     notify->HandleChatterMessage (strVal);
+                  if (bot != nullptr && bot->m_notKilled)
+                     bot->HandleChatterMessage (strVal);
                }
             }
             waypoints.SetBombPosition (true);
          }
-         else if (!g_bombPlanted && FStrEq (strVal, "#Bomb_Planted"))
+         else if (!g_bombPlanted && strcmp (strVal, "#Bomb_Planted") == 0)
          {
             g_bombPlanted = g_bombSayString = true;
             g_timeBombPlanted = Time ();
 
             for (int i = 0; i < MaxClients (); i++)
             {
-               Bot *notify = bots.GetBot (i);
+               Bot *bot = bots.GetBot (i);
 
-               if (notify != NULL && notify->m_notKilled)
+               if (bot != nullptr && bot->m_notKilled)
                {
-                  notify->DeleteSearchNodes ();
-                  notify->ResetTasks ();
+                  bot->DeleteSearchNodes ();
+                  bot->ResetTasks ();
 
-                  if (yb_communication_type.GetInt () == 2 && Random.Long (0, 100) < 75 && notify->m_team == CT)
-                     notify->ChatterMessage (Chatter_WhereIsTheBomb);
+                  if (yb_communication_type.GetInt () == 2 && Random.Long (0, 100) < 75 && bot->m_team == CT)
+                     bot->ChatterMessage (Chatter_WhereIsTheBomb);
                }
             }
             waypoints.SetBombPosition ();
          }
-         else if (bot != NULL && FStrEq (strVal, "#Switch_To_BurstFire"))
+         else if (bot != nullptr && strcmp (strVal, "#Switch_To_BurstFire") == 0)
             bot->m_weaponBurstMode = BM_ON;
-         else if (bot != NULL && FStrEq (strVal, "#Switch_To_SemiAuto"))
+         else if (bot != nullptr && strcmp (strVal, "#Switch_To_SemiAuto") == 0)
             bot->m_weaponBurstMode = BM_OFF;
       }
       break;
@@ -1056,7 +1054,49 @@ void Engine::ProcessMessageCapture (void *ptr)
    m_msgBlock.state++; // and finally update network message state
 }
 
-ConVar::ConVar (const char *name, const char *initval, VarType type, bool regMissing) : m_eptr (NULL)
+ConVar::ConVar (const char *name, const char *initval, VarType type, bool regMissing) : m_eptr (nullptr)
 {
    engine.PushVariableToStack (name, initval, type, regMissing, this);
+}
+
+void EntityIndexer::StartNewSearch (EntitySearchType type, const char *value /*= nullptr*/, const Vector &org /*= Vector::GetZero ()*/, float sphereRadius /*= 0.0f*/)
+{
+   m_searchType = type;
+
+   if (type == ENTITY_SEARCH_SPHERE)
+   {
+      if (Math::FltZero (sphereRadius) || org.IsZero ())
+      {
+         assert (!"Entity sphere searcher can't have radius of 0.0f or origin == null");
+         return;
+      }
+      m_value = nullptr;
+      m_field = nullptr;
+
+      m_org = org;
+      m_sphereRadius = sphereRadius;
+   }
+   else
+   {
+      if (type == ENTITY_SEARCH_CLASSNAME)
+         m_field = "classname";
+      else
+         m_field = "target";
+
+      m_value = value;
+   }
+}
+
+bool EntityIndexer::FindNext (void)
+{
+   switch (m_searchType)
+   {
+   case ENTITY_SEARCH_SPHERE:
+      return !engine.IsNullEntity (m_storedEntity = g_engfuncs.pfnFindEntityInSphere (m_storedEntity, m_org, m_sphereRadius));
+
+   default:
+   case ENTITY_SEARCH_CLASSNAME:
+   case ENTITY_SEARCH_TARGET:
+      return !engine.IsNullEntity (m_storedEntity = g_engfuncs.pfnFindEntityByString (m_storedEntity, m_field, m_value));
+   }
 }

@@ -1,0 +1,1613 @@
+/***
+*
+*   Copyright (c) 1999-2005, Valve Corporation. All rights reserved.
+*
+*   This product contains software technology licensed from Id 
+*   Software, Inc. ("Id Technology").  Id Technology (c) 1996 Id Software, Inc. 
+*   All Rights Reserved.
+*
+*   This source code contains proprietary and confidential information of
+*   Valve LLC and its suppliers.  Access to this code is restricted to
+*   persons who have executed a written SDK license with Valve.  Any access,
+*   use or distribution of this code by or to any unlicensed person is illegal.
+*
+****/
+
+#ifndef EXTDLL_H
+#define EXTDLL_H
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOWINRES
+#define NOSERVICE
+#define NOMCX
+#define NOIME
+#include "windows.h"
+#include "winsock2.h"
+#else   // _WIN32
+#define FALSE 0
+#define TRUE (!FALSE)
+typedef unsigned long ULONG;
+typedef uint8 BYTE;
+typedef int BOOL;
+
+#define MAX_PATH PATH_MAX
+#include <limits.h>
+#include <stdarg.h>
+#ifndef min
+#define min(a,b) (((a) < (b)) ? (a) : (b))
+#endif
+#ifndef max
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#define _vsnprintf(a,b,c,d) vsnprintf(a,b,c,d)
+#endif
+#endif //_WIN32
+
+#include "stdio.h"
+#include "stdlib.h"
+#include "math.h"
+
+typedef int func_t;              //
+typedef int string_t;           // from engine's pr_comp.h;
+typedef float vec_t;              // needed before including progdefs.h
+
+#include "corelib.h"
+
+#define vec3_t Vector
+
+                                  // Constants shared by the engine and dlls
+                                  // This header file included by engine files and DLL files.
+                                  // Most came from server.h
+
+                                  // edict->flags
+#define FL_FLY               (1 << 0)   // Changes the SV_Movestep() behavior to not need to be on ground
+#define FL_SWIM              (1 << 1)   // Changes the SV_Movestep() behavior to not need to be on ground (but stay in water)
+#define FL_CONVEYOR          (1 << 2)
+#define FL_CLIENT            (1 << 3)
+#define FL_INWATER           (1 << 4)
+#define FL_MONSTER           (1 << 5)
+#define FL_GODMODE           (1 << 6)
+#define FL_NOTARGET          (1 << 7)
+#define FL_SKIPLOCALHOST     (1 << 8)   // Don't send entity to local host, it's predicting this entity itself
+#define FL_ONGROUND          (1 << 9)   // At rest / on the ground
+#define FL_PARTIALGROUND     (1 << 10)   // not all corners are valid
+#define FL_WATERJUMP         (1 << 11)   // player jumping out of water
+#define FL_FROZEN            (1 << 12)   // Player is frozen for 3rd person camera
+#define FL_FAKECLIENT        (1 << 13)   // JAC: fake client, simulated server side; don't send network messages to them
+#define FL_DUCKING           (1 << 14)   // Player flag -- Player is fully crouched
+#define FL_FLOAT             (1 << 15)   // Apply floating force to this entity when in water
+#define FL_GRAPHED           (1 << 16)   // worldgraph has this ent listed as something that blocks a connection
+
+                                  // UNDONE: Do we need these?
+#define FL_IMMUNE_WATER      (1 << 17)
+#define FL_IMMUNE_SLIME      (1 << 18)
+#define FL_IMMUNE_LAVA       (1 << 19)
+
+#define FL_PROXY             (1 << 20)   // This is a spectator proxy
+#define FL_ALWAYSTHINK       (1 << 21)   // Brush model flag -- call think every frame regardless of nextthink - ltime (for constantly changing velocity/path)
+#define FL_BASEVELOCITY      (1 << 22)   // Base velocity has been applied this frame (used to convert base velocity into momentum)
+#define FL_MONSTERCLIP       (1 << 23)   // Only collide in with monsters who have FL_MONSTERCLIP set
+#define FL_ONTRAIN           (1 << 24)   // Player is _controlling_ a train, so movement commands should be ignored on client during prediction.
+#define FL_WORLDBRUSH        (1 << 25)   // Not moveable/removeable brush entity (really part of the world, but represented as an entity for transparency or something)
+#define FL_SPECTATOR         (1 << 26)   // This client is a spectator, don't run touch functions, etc.
+#define FL_CUSTOMENTITY      (1 << 29)   // This is a custom entity
+#define FL_KILLME            (1 << 30)   // This entity is marked for death -- This allows the engine to kill ents at the appropriate time
+#define FL_DORMANT           (1 << 31)   // Entity is dormant, no updates to client
+
+                                  // Goes into globalvars_t.trace_flags
+#define FTRACE_SIMPLEBOX     (1 << 0)   // Traceline with a simple box
+
+                                  // walkmove modes
+#define WALKMOVE_NORMAL       0 // normal walkmove
+#define WALKMOVE_WORLDONLY    1 // doesn't hit ANY entities, no matter what the solid type
+#define WALKMOVE_CHECKONLY    2 // move, but don't touch triggers
+
+                                  // edict->movetype values
+#define MOVETYPE_NONE           0   // never moves
+#define MOVETYPE_WALK           3   // Player only - moving on the ground
+#define MOVETYPE_STEP           4   // gravity, special edge handling -- monsters use this
+#define MOVETYPE_FLY            5   // No gravity, but still collides with stuff
+#define MOVETYPE_TOSS           6   // gravity/collisions
+#define MOVETYPE_PUSH           7   // no clip to world, push and crush
+#define MOVETYPE_NOCLIP         8   // No gravity, no collisions, still do velocity/avelocity
+#define MOVETYPE_FLYMISSILE     9   // extra size to monsters
+#define MOVETYPE_BOUNCE         10   // Just like Toss, but reflect velocity when contacting surfaces
+#define MOVETYPE_BOUNCEMISSILE  11   // bounce w/o gravity
+#define MOVETYPE_FOLLOW         12   // track movement of aiment
+#define MOVETYPE_PUSHSTEP       13   // BSP model that needs physics/world collisions (uses nearest hull for world collision)
+
+                                  // edict->solid values
+                                  // NOTE: Some movetypes will cause collisions independent of SOLID_NOT/SOLID_TRIGGER when the entity moves
+                                  // SOLID only effects OTHER entities colliding with this one when they move - UGH!
+#define    SOLID_NOT                0   // no interaction with other objects
+#define    SOLID_TRIGGER            1   // touch on edge, but not blocking
+#define    SOLID_BBOX               2   // touch on edge, block
+#define    SOLID_SLIDEBOX           3   // touch on edge, but not an onground
+#define    SOLID_BSP                4   // bsp clip, touch on edge, block
+
+                                  // edict->deadflag values
+#define    DEAD_NO              0   // alive
+#define    DEAD_DYING           1   // playing death animation or still falling off of a ledge waiting to hit ground
+#define    DEAD_DEAD            2   // dead. lying still.
+#define DEAD_RESPAWNABLE        3
+#define DEAD_DISCARDBODY        4
+
+#define    DAMAGE_NO            0
+#define    DAMAGE_YES           1
+#define    DAMAGE_AIM           2
+
+                                  // entity effects
+#define    EF_BRIGHTFIELD       1   // swirling cloud of particles
+#define    EF_MUZZLEFLASH       2   // single frame ELIGHT on entity attachment 0
+#define    EF_BRIGHTLIGHT       4   // DLIGHT centered at entity origin
+#define    EF_DIMLIGHT          8   // player flashlight
+#define EF_INVLIGHT             16   // get lighting from ceiling
+#define EF_NOINTERP             32   // don't interpolate the next frame
+#define EF_LIGHT                64   // rocket flare glow sprite
+#define EF_NODRAW               128   // don't draw entity
+
+                                  // entity flags
+#define EFLAG_SLERP             1   // do studio interpolation of this entity
+
+                                  //
+                                  // temp entity events
+                                  //
+#define    TE_BEAMPOINTS        0   // beam effect between two points
+                                  // coord coord coord (start position) 
+                                  // coord coord coord (end position) 
+                                  // short (sprite index) 
+                                  // byte (starting frame) 
+                                  // byte (frame rate in 0.1's) 
+                                  // byte (life in 0.1's) 
+                                  // byte (line width in 0.1's) 
+                                  // byte (noise amplitude in 0.01's) 
+                                  // byte,byte,byte (color)
+                                  // byte (brightness)
+                                  // byte (scroll speed in 0.1's)
+
+#define    TE_BEAMENTPOINT        1   // beam effect between point and entity
+                                  // short (start entity) 
+                                  // coord coord coord (end position) 
+                                  // short (sprite index) 
+                                  // byte (starting frame) 
+                                  // byte (frame rate in 0.1's) 
+                                  // byte (life in 0.1's) 
+                                  // byte (line width in 0.1's) 
+                                  // byte (noise amplitude in 0.01's) 
+                                  // byte,byte,byte (color)
+                                  // byte (brightness)
+                                  // byte (scroll speed in 0.1's)
+
+#define    TE_GUNSHOT          2   // particle effect plus ricochet sound
+                                  // coord coord coord (position) 
+
+#define    TE_EXPLOSION        3   // additive sprite, 2 dynamic lights, flickering particles, explosion sound, move vertically 8 pps
+                                  // coord coord coord (position) 
+                                  // short (sprite index)
+                                  // byte (scale in 0.1's)
+                                  // byte (framerate)
+                                  // byte (flags)
+                                  //
+                                  // The Explosion effect has some flags to control performance/aesthetic features:
+#define TE_EXPLFLAG_NONE        0   // all flags clear makes default Half-Life explosion
+#define TE_EXPLFLAG_NOADDITIVE  1   // sprite will be drawn opaque (ensure that the sprite you send is a non-additive sprite)
+#define TE_EXPLFLAG_NODLIGHTS   2   // do not render dynamic lights
+#define TE_EXPLFLAG_NOSOUND     4   // do not play client explosion sound
+#define TE_EXPLFLAG_NOPARTICLES 8   // do not draw particles
+
+
+#define    TE_TAREXPLOSION        4   // Quake1 "tarbaby" explosion with sound
+                                  // coord coord coord (position) 
+
+#define    TE_SMOKE            5   // alphablend sprite, move vertically 30 pps
+                                  // coord coord coord (position) 
+                                  // short (sprite index)
+                                  // byte (scale in 0.1's)
+                                  // byte (framerate)
+
+#define    TE_TRACER            6   // tracer effect from point to point
+                                  // coord, coord, coord (start) 
+                                  // coord, coord, coord (end)
+
+#define    TE_LIGHTNING        7   // TE_BEAMPOINTS with simplified parameters
+                                  // coord, coord, coord (start) 
+                                  // coord, coord, coord (end) 
+                                  // byte (life in 0.1's) 
+                                  // byte (width in 0.1's) 
+                                  // byte (amplitude in 0.01's)
+                                  // short (sprite model index)
+
+#define    TE_BEAMENTS            8
+                                  // short (start entity) 
+                                  // short (end entity) 
+                                  // short (sprite index) 
+                                  // byte (starting frame) 
+                                  // byte (frame rate in 0.1's) 
+                                  // byte (life in 0.1's) 
+                                  // byte (line width in 0.1's) 
+                                  // byte (noise amplitude in 0.01's) 
+                                  // byte,byte,byte (color)
+                                  // byte (brightness)
+                                  // byte (scroll speed in 0.1's)
+
+#define    TE_SPARKS            9   // 8 random tracers with gravity, ricochet sprite
+                                  // coord coord coord (position) 
+
+#define    TE_LAVASPLASH        10   // Quake1 lava splash
+                                  // coord coord coord (position) 
+
+#define    TE_TELEPORT            11   // Quake1 teleport splash
+                                  // coord coord coord (position) 
+
+#define TE_EXPLOSION2        12 // Quake1 colormaped (base palette) particle explosion with sound
+                                  // coord coord coord (position) 
+                                  // byte (starting color)
+                                  // byte (num colors)
+
+#define TE_BSPDECAL            13   // Decal from the .BSP file
+                                  // coord, coord, coord (x,y,z), decal position (center of texture in world)
+                                  // short (texture index of precached decal texture name)
+                                  // short (entity index)
+                                  // [optional - only included if previous short is non-zero (not the world)] short (index of model of above entity)
+
+#define TE_IMPLOSION        14  // tracers moving toward a point
+                                  // coord, coord, coord (position)
+                                  // byte (radius)
+                                  // byte (count)
+                                  // byte (life in 0.1's) 
+
+#define TE_SPRITETRAIL        15   // line of moving glow sprites with gravity, fadeout, and collisions
+                                  // coord, coord, coord (start) 
+                                  // coord, coord, coord (end) 
+                                  // short (sprite index)
+                                  // byte (count)
+                                  // byte (life in 0.1's) 
+                                  // byte (scale in 0.1's) 
+                                  // byte (velocity along Vector in 10's)
+                                  // byte (randomness of velocity in 10's)
+
+#define TE_BEAM                16   // obsolete
+
+#define TE_SPRITE            17 // additive sprite, plays 1 cycle
+                                  // coord, coord, coord (position) 
+                                  // short (sprite index) 
+                                  // byte (scale in 0.1's) 
+                                  // byte (brightness)
+
+#define TE_BEAMSPRITE        18 // A beam with a sprite at the end
+                                  // coord, coord, coord (start position) 
+                                  // coord, coord, coord (end position) 
+                                  // short (beam sprite index) 
+                                  // short (end sprite index) 
+
+#define TE_BEAMTORUS        19  // screen aligned beam ring, expands to max radius over lifetime
+                                  // coord coord coord (center position) 
+                                  // coord coord coord (axis and radius) 
+                                  // short (sprite index) 
+                                  // byte (starting frame) 
+                                  // byte (frame rate in 0.1's) 
+                                  // byte (life in 0.1's) 
+                                  // byte (line width in 0.1's) 
+                                  // byte (noise amplitude in 0.01's) 
+                                  // byte,byte,byte (color)
+                                  // byte (brightness)
+                                  // byte (scroll speed in 0.1's)
+
+#define TE_BEAMDISK            20   // disk that expands to max radius over lifetime
+                                  // coord coord coord (center position) 
+                                  // coord coord coord (axis and radius) 
+                                  // short (sprite index) 
+                                  // byte (starting frame) 
+                                  // byte (frame rate in 0.1's) 
+                                  // byte (life in 0.1's) 
+                                  // byte (line width in 0.1's) 
+                                  // byte (noise amplitude in 0.01's) 
+                                  // byte,byte,byte (color)
+                                  // byte (brightness)
+                                  // byte (scroll speed in 0.1's)
+
+#define TE_BEAMCYLINDER        21   // cylinder that expands to max radius over lifetime
+                                  // coord coord coord (center position) 
+                                  // coord coord coord (axis and radius) 
+                                  // short (sprite index) 
+                                  // byte (starting frame) 
+                                  // byte (frame rate in 0.1's) 
+                                  // byte (life in 0.1's) 
+                                  // byte (line width in 0.1's) 
+                                  // byte (noise amplitude in 0.01's) 
+                                  // byte,byte,byte (color)
+                                  // byte (brightness)
+                                  // byte (scroll speed in 0.1's)
+
+#define TE_BEAMFOLLOW        22 // create a line of decaying beam segments until entity stops moving
+                                  // short (entity:attachment to follow)
+                                  // short (sprite index)
+                                  // byte (life in 0.1's) 
+                                  // byte (line width in 0.1's) 
+                                  // byte,byte,byte (color)
+                                  // byte (brightness)
+
+#define TE_GLOWSPRITE        23
+                                  // coord, coord, coord (pos) short (model index) byte (scale / 10)
+
+#define TE_BEAMRING            24   // connect a beam ring to two entities
+                                  // short (start entity) 
+                                  // short (end entity) 
+                                  // short (sprite index) 
+                                  // byte (starting frame) 
+                                  // byte (frame rate in 0.1's) 
+                                  // byte (life in 0.1's) 
+                                  // byte (line width in 0.1's) 
+                                  // byte (noise amplitude in 0.01's) 
+                                  // byte,byte,byte (color)
+                                  // byte (brightness)
+                                  // byte (scroll speed in 0.1's)
+
+#define TE_STREAK_SPLASH    25  // oriented shower of tracers
+                                  // coord coord coord (start position) 
+                                  // coord coord coord (direction Vector) 
+                                  // byte (color)
+                                  // short (count)
+                                  // short (base speed)
+                                  // short (ramdon velocity)
+
+#define TE_BEAMHOSE            26   // obsolete
+
+#define TE_DLIGHT            27 // dynamic light, effect world, minor entity effect
+                                  // coord, coord, coord (pos) 
+                                  // byte (radius in 10's) 
+                                  // byte byte byte (color)
+                                  // byte (brightness)
+                                  // byte (life in 10's)
+                                  // byte (decay rate in 10's)
+
+#define TE_ELIGHT            28 // point entity light, no world effect
+                                  // short (entity:attachment to follow)
+                                  // coord coord coord (initial position) 
+                                  // coord (radius)
+                                  // byte byte byte (color)
+                                  // byte (life in 0.1's)
+                                  // coord (decay rate)
+
+#define TE_TEXTMESSAGE        29
+                                  // short 1.2.13 x (-1 = center)
+                                  // short 1.2.13 y (-1 = center)
+                                  // byte Effect 0 = fade in/fade out
+                                  // 1 is flickery credits
+                                  // 2 is write out (training room)
+
+                                  // 4 bytes r,g,b,a color1   (text color)
+                                  // 4 bytes r,g,b,a color2   (effect color)
+                                  // ushort 8.8 fadein time
+                                  // ushort 8.8  fadeout time
+                                  // ushort 8.8 hold time
+                                  // optional ushort 8.8 fxtime   (time the highlight lags behing the leading text in effect 2)
+                                  // string text message       (512 chars max sz string)
+#define TE_LINE                30
+                                  // coord, coord, coord        startpos
+                                  // coord, coord, coord        endpos
+                                  // short life in 0.1 s
+                                  // 3 bytes r, g, b
+
+#define TE_BOX                31
+                                  // coord, coord, coord        boxmins
+                                  // coord, coord, coord        boxmaxs
+                                  // short life in 0.1 s
+                                  // 3 bytes r, g, b
+
+#define TE_KILLBEAM            99   // kill all beams attached to entity
+                                  // short (entity)
+
+#define TE_LARGEFUNNEL        100
+                                  // coord coord coord (funnel position)
+                                  // short (sprite index) 
+                                  // short (flags) 
+
+#define    TE_BLOODSTREAM        101   // particle spray
+                                  // coord coord coord (start position)
+                                  // coord coord coord (spray Vector)
+                                  // byte (color)
+                                  // byte (speed)
+
+#define    TE_SHOWLINE            102   // line of particles every 5 units, dies in 30 seconds
+                                  // coord coord coord (start position)
+                                  // coord coord coord (end position)
+
+#define TE_BLOOD            103 // particle spray
+                                  // coord coord coord (start position)
+                                  // coord coord coord (spray Vector)
+                                  // byte (color)
+                                  // byte (speed)
+
+#define TE_DECAL            104 // Decal applied to a brush entity (not the world)
+                                  // coord, coord, coord (x,y,z), decal position (center of texture in world)
+                                  // byte (texture index of precached decal texture name)
+                                  // short (entity index)
+
+#define TE_FIZZ                105   // create alpha sprites inside of entity, float upwards
+                                  // short (entity)
+                                  // short (sprite index)
+                                  // byte (density)
+
+#define TE_MODEL            106 // create a moving model that bounces and makes a sound when it hits
+                                  // coord, coord, coord (position) 
+                                  // coord, coord, coord (velocity)
+                                  // angle (initial yaw)
+                                  // short (model index)
+                                  // byte (bounce sound type)
+                                  // byte (life in 0.1's)
+
+#define TE_EXPLODEMODEL        107   // spherical shower of models, picks from set
+                                  // coord, coord, coord (origin)
+                                  // coord (velocity)
+                                  // short (model index)
+                                  // short (count)
+                                  // byte (life in 0.1's)
+
+#define TE_BREAKMODEL        108   // box of models or sprites
+                                  // coord, coord, coord (position)
+                                  // coord, coord, coord (size)
+                                  // coord, coord, coord (velocity)
+                                  // byte (random velocity in 10's)
+                                  // short (sprite or model index)
+                                  // byte (count)
+                                  // byte (life in 0.1 secs)
+                                  // byte (flags)
+
+#define TE_GUNSHOTDECAL        109   // decal and ricochet sound
+                                  // coord, coord, coord (position)
+                                  // short (entity index???)
+                                  // byte (decal???)
+
+#define TE_SPRITE_SPRAY        110   // spay of alpha sprites
+                                  // coord, coord, coord (position)
+                                  // coord, coord, coord (velocity)
+                                  // short (sprite index)
+                                  // byte (count)
+                                  // byte (speed)
+                                  // byte (noise)
+
+#define TE_ARMOR_RICOCHET    111   // quick spark sprite, client ricochet sound.
+                                  // coord, coord, coord (position)
+                                  // byte (scale in 0.1's)
+
+#define TE_PLAYERDECAL        112   // ???
+                                  // byte (playerindex)
+                                  // coord, coord, coord (position)
+                                  // short (entity???)
+                                  // byte (decal number???)
+                                  // [optional] short (model index???)
+
+#define TE_BUBBLES            113   // create alpha sprites inside of box, float upwards
+                                  // coord, coord, coord (min start position)
+                                  // coord, coord, coord (max start position)
+                                  // coord (float height)
+                                  // short (model index)
+                                  // byte (count)
+                                  // coord (speed)
+
+#define TE_BUBBLETRAIL        114   // create alpha sprites along a line, float upwards
+                                  // coord, coord, coord (min start position)
+                                  // coord, coord, coord (max start position)
+                                  // coord (float height)
+                                  // short (model index)
+                                  // byte (count)
+                                  // coord (speed)
+
+#define TE_BLOODSPRITE        115   // spray of opaque sprite1's that fall, single sprite2 for 1..2 secs (this is a high-priority tent)
+                                  // coord, coord, coord (position)
+                                  // short (sprite1 index)
+                                  // short (sprite2 index)
+                                  // byte (color)
+                                  // byte (scale)
+
+#define TE_WORLDDECAL        116   // Decal applied to the world brush
+                                  // coord, coord, coord (x,y,z), decal position (center of texture in world)
+                                  // byte (texture index of precached decal texture name)
+
+#define TE_WORLDDECALHIGH    117   // Decal (with texture index > 256) applied to world brush
+                                  // coord, coord, coord (x,y,z), decal position (center of texture in world)
+                                  // byte (texture index of precached decal texture name - 256)
+
+#define TE_DECALHIGH        118 // Same as TE_DECAL, but the texture index was greater than 256
+                                  // coord, coord, coord (x,y,z), decal position (center of texture in world)
+                                  // byte (texture index of precached decal texture name - 256)
+                                  // short (entity index)
+
+#define TE_PROJECTILE        119   // Makes a projectile (like a nail) (this is a high-priority tent)
+                                  // coord, coord, coord (position)
+                                  // coord, coord, coord (velocity)
+                                  // short (modelindex)
+                                  // byte (life)
+                                  // byte (owner)  projectile won't collide with owner (if owner == 0, projectile will hit any client).
+
+#define TE_SPRAY            120 // Throws a shower of sprites or models
+                                  // coord, coord, coord (position)
+                                  // coord, coord, coord (direction)
+                                  // short (modelindex)
+                                  // byte (count)
+                                  // byte (speed)
+                                  // byte (noise)
+                                  // byte (rendermode)
+
+#define TE_PLAYERSPRITES    121 // sprites emit from a player's bounding box (ONLY use for players!)
+                                  // byte (playernum)
+                                  // short (sprite modelindex)
+                                  // byte (count)
+                                  // byte (variance) (0 = no variance in size) (10 = 10% variance in size)
+
+#define TE_PARTICLEBURST    122 // very similar to lavasplash.
+                                  // coord (origin)
+                                  // short (radius)
+                                  // byte (particle color)
+                                  // byte (duration * 10) (will be randomized a bit)
+
+#define TE_FIREFIELD            123   // makes a field of fire.
+                                  // coord (origin)
+                                  // short (radius) (fire is made in a square around origin. -radius, -radius to radius, radius)
+                                  // short (modelindex)
+                                  // byte (count)
+                                  // byte (flags)
+                                  // byte (duration (in seconds) * 10) (will be randomized a bit)
+                                  //
+                                  // to keep network traffic low, this message has associated flags that fit into a byte:
+#define TEFIRE_FLAG_ALLFLOAT    1   // all sprites will drift upwards as they animate
+#define TEFIRE_FLAG_SOMEFLOAT   2   // some of the sprites will drift upwards. (50% chance)
+#define TEFIRE_FLAG_LOOP        4   // if set, sprite plays at 15 fps, otherwise plays at whatever rate stretches the animation over the sprite's duration.
+#define TEFIRE_FLAG_ALPHA       8   // if set, sprite is rendered alpha blended at 50% else, opaque
+#define TEFIRE_FLAG_PLANAR     16   // if set, all fire sprites have same initial Z instead of randomly filling a cube.
+
+#define TE_PLAYERATTACHMENT            124   // attaches a TENT to a player (this is a high-priority tent)
+                                  // byte (entity index of player)
+                                  // coord (vertical offset) ( attachment origin.z = player origin.z + vertical offset )
+                                  // short (model index)
+                                  // short (life * 10 );
+
+#define TE_KILLPLAYERATTACHMENTS    125   // will expire all TENTS attached to a player.
+                                  // byte (entity index of player)
+
+#define TE_MULTIGUNSHOT                126   // much more compact shotgun message
+                                  // This message is used to make a client approximate a 'spray' of gunfire.
+                                  // Any weapon that fires more than one bullet per frame and fires in a bit of a spread is
+                                  // a good candidate for MULTIGUNSHOT use. (shotguns)
+                                  //
+                                  // NOTE: This effect makes the client do traces for each bullet, these client traces ignore
+                                  //         entities that have studio models.Traces are 4096 long.
+                                  //
+                                  // coord (origin)
+                                  // coord (origin)
+                                  // coord (origin)
+                                  // coord (direction)
+                                  // coord (direction)
+                                  // coord (direction)
+                                  // coord (x noise * 100)
+                                  // coord (y noise * 100)
+                                  // byte (count)
+                                  // byte (bullethole decal texture index)
+
+#define TE_USERTRACER                127   // larger message than the standard tracer, but allows some customization.
+                                  // coord (origin)
+                                  // coord (origin)
+                                  // coord (origin)
+                                  // coord (velocity)
+                                  // coord (velocity)
+                                  // coord (velocity)
+                                  // byte ( life * 10 )
+                                  // byte ( color ) this is an index into an array of color vectors in the engine. (0 - )
+                                  // byte ( length * 10 )
+
+
+
+#define MSG_BROADCAST       0     // unreliable to all
+#define MSG_ONE             1     // reliable to one (msg_entity)
+#define MSG_ALL             2     // reliable to all
+#define MSG_INIT            3     // write to the init string
+#define MSG_PVS             4     // Ents in PVS of org
+#define MSG_PAS             5     // Ents in PAS of org
+#define MSG_PVS_R           6     // Reliable to PVS
+#define MSG_PAS_R           7     // Reliable to PAS
+#define MSG_ONE_UNRELIABLE  8     // Send to one client, but don't put in reliable stream, put in unreliable datagram ( could be dropped )
+#define MSG_SPEC            9     // Sends to all spectator proxies
+
+                                  // contents of a spot in the world
+#define    CONTENTS_EMPTY      -1
+#define    CONTENTS_SOLID      -2
+#define    CONTENTS_WATER      -3
+#define    CONTENTS_SLIME      -4
+#define    CONTENTS_LAVA       -5
+#define    CONTENTS_SKY        -6
+
+#define    CONTENTS_LADDER     -16
+
+#define    CONTENT_FLYFIELD            -17
+#define    CONTENT_GRAVITY_FLYFIELD    -18
+#define    CONTENT_FOG                 -19
+
+#define CONTENT_EMPTY    -1
+#define CONTENT_SOLID    -2
+#define CONTENT_WATER    -3
+#define CONTENT_SLIME    -4
+#define CONTENT_LAVA     -5
+#define CONTENT_SKY      -6
+
+                                  // channels
+#define CHAN_AUTO              0
+#define CHAN_WEAPON            1
+#define CHAN_VOICE             2
+#define CHAN_ITEM              3
+#define CHAN_BODY              4
+#define CHAN_STREAM            5   // allocate stream channel from the static or dynamic area
+#define CHAN_STATIC            6   // allocate channel from the static area
+#define CHAN_NETWORKVOICE_BASE 7   // voice data coming across the network
+#define CHAN_NETWORKVOICE_END  500   // network voice data reserves slots (CHAN_NETWORKVOICE_BASE through CHAN_NETWORKVOICE_END).
+
+                                  // attenuation values
+#define ATTN_NONE        0
+#define ATTN_NORM       (float)0.8
+#define ATTN_IDLE       (float)2
+#define ATTN_STATIC     (float)1.25
+
+                                  // pitch values
+#define PITCH_NORM       100     // non-pitch shifted
+#define PITCH_LOW        95     // other values are possible - 0-255, where 255 is very high
+#define PITCH_HIGH       120
+
+                                  // volume values
+#define VOL_NORM        1.0
+
+                                  // plats
+#define PLAT_LOW_TRIGGER    1
+
+                                  // Trains
+#define SF_TRAIN_WAIT_RETRIGGER  1
+#define SF_TRAIN_START_ON        4   // Train is initially moving
+#define SF_TRAIN_PASSABLE        8   // Train is not solid -- used to make water trains
+
+                                  // buttons
+#define IN_ATTACK   (1 << 0)
+#define IN_JUMP     (1 << 1)
+#define IN_DUCK     (1 << 2)
+#define IN_FORWARD  (1 << 3)
+#define IN_BACK     (1 << 4)
+#define IN_USE      (1 << 5)
+#define IN_CANCEL   (1 << 6)
+#define IN_LEFT     (1 << 7)
+#define IN_RIGHT    (1 << 8)
+#define IN_MOVELEFT (1 << 9)
+#define IN_MOVERIGHT (1 << 10)
+#define IN_ATTACK2  (1 << 11)
+#define IN_RUN      (1 << 12)
+#define IN_RELOAD   (1 << 13)
+#define IN_ALT1     (1 << 14)
+#define IN_SCORE    (1 << 15)
+
+                                  // Break Model Defines
+
+#define BREAK_TYPEMASK    0x4F
+#define BREAK_GLASS       0x01
+#define BREAK_METAL       0x02
+#define BREAK_FLESH       0x04
+#define BREAK_WOOD        0x08
+
+#define BREAK_SMOKE       0x10
+#define BREAK_TRANS       0x20
+#define BREAK_CONCRETE    0x40
+#define BREAK_2           0x80
+
+                                  // Colliding temp entity sounds
+
+#define BOUNCE_GLASS    BREAK_GLASS
+#define BOUNCE_METAL    BREAK_METAL
+#define BOUNCE_FLESH    BREAK_FLESH
+#define BOUNCE_WOOD     BREAK_WOOD
+#define BOUNCE_SHRAP    0x10
+#define BOUNCE_SHELL    0x20
+#define BOUNCE_CONCRETE BREAK_CONCRETE
+#define BOUNCE_SHOTSHELL 0x80
+
+                                  // Temp entity bounce sound types
+#define TE_BOUNCE_NULL       0
+#define TE_BOUNCE_SHELL      1
+#define TE_BOUNCE_SHOTSHELL  2
+
+#define AMBIENT_SOUND_STATIC            0   // medium radius attenuation
+#define AMBIENT_SOUND_EVERYWHERE        1
+#define AMBIENT_SOUND_SMALLRADIUS       2
+#define AMBIENT_SOUND_MEDIUMRADIUS      4
+#define AMBIENT_SOUND_LARGERADIUS       8
+#define AMBIENT_SOUND_START_SILENT      16
+#define AMBIENT_SOUND_NOT_LOOPING       32
+
+#define SPEAKER_START_SILENT            1   // wait for trigger 'on' to start announcements
+
+#define SND_SPAWNING       (1 << 8)   // duplicated in protocol.h we're spawing, used in some cases for ambients
+#define SND_STOP           (1 << 5)   // duplicated in protocol.h stop sound
+#define SND_CHANGE_VOL     (1 << 6)   // duplicated in protocol.h change sound vol
+#define SND_CHANGE_PITCH   (1 << 7)   // duplicated in protocol.h change sound pitch
+
+#define LFO_SQUARE         1
+#define LFO_TRIANGLE       2
+#define LFO_RANDOM         3
+
+                                  // func_rotating
+#define SF_BRUSH_ROTATE_Y_AXIS      0
+#define SF_BRUSH_ROTATE_INSTANT     1
+#define SF_BRUSH_ROTATE_BACKWARDS   2
+#define SF_BRUSH_ROTATE_Z_AXIS      4
+#define SF_BRUSH_ROTATE_X_AXIS      8
+#define SF_PENDULUM_AUTO_RETURN     16
+#define SF_PENDULUM_PASSABLE        32
+
+#define SF_BRUSH_ROTATE_SMALLRADIUS  128
+#define SF_BRUSH_ROTATE_MEDIUMRADIUS 256
+#define SF_BRUSH_ROTATE_LARGERADIUS  512
+
+#define PUSH_BLOCK_ONLY_X    1
+#define PUSH_BLOCK_ONLY_Y    2
+
+#define VEC_HULL_MIN         Vector(-16, -16, -36)
+#define VEC_HULL_MAX         Vector( 16,  16,  36)
+#define VEC_HUMAN_HULL_MIN   Vector( -16, -16, 0 )
+#define VEC_HUMAN_HULL_MAX   Vector( 16, 16, 72 )
+#define VEC_HUMAN_HULL_DUCK  Vector( 16, 16, 36 )
+
+#define VEC_VIEW             Vector( 0, 0, 28 )
+
+#define VEC_DUCK_HULL_MIN    Vector(-16, -16, -18 )
+#define VEC_DUCK_HULL_MAX    Vector( 16,  16,  18)
+#define VEC_DUCK_VIEW        Vector( 0, 0, 12 )
+
+#define SVC_TEMPENTITY      23
+#define SVC_INTERMISSION    30
+#define SVC_CDTRACK         32
+#define SVC_WEAPONANIM      35
+#define SVC_ROOMTYPE        37
+#define SVC_DIRECTOR        51
+
+                                  // triggers
+#define SF_TRIGGER_ALLOWMONSTERS    1   // monsters allowed to fire this trigger
+#define SF_TRIGGER_NOCLIENTS        2   // players not allowed to fire this trigger
+#define SF_TRIGGER_PUSHABLES        4   // only pushables can fire this trigger
+
+                                  // func breakable
+#define SF_BREAK_TRIGGER_ONLY   1   // may only be broken by trigger
+#define SF_BREAK_TOUCH          2   // can be 'crashed through' by running player (plate glass)
+#define SF_BREAK_PRESSURE       4   // can be broken by a player standing on it
+#define SF_BREAK_CROWBAR        256   // instant break if hit with crowbar
+
+                                  // func_pushable (it's also func_breakable, so don't collide with those flags)
+#define SF_PUSH_BREAKABLE       128
+
+#define SF_LIGHT_START_OFF     1
+
+#define SPAWNFLAG_NOMESSAGE    1
+#define SPAWNFLAG_NOTOUCH      1
+#define SPAWNFLAG_DROIDONLY    4
+
+#define SPAWNFLAG_USEONLY   1     // can't be touched, must be used (buttons)
+
+#define TELE_PLAYER_ONLY    1
+#define TELE_SILENT         2
+
+#define SF_TRIG_PUSH_ONCE   1
+
+                                  // Dot products for view cone checking
+#define VIEW_FIELD_FULL         (float)-1.0   // +-180 degrees
+#define VIEW_FIELD_WIDE         (float)-0.7   // +-135 degrees 0.1 // +-85 degrees, used for full FOV checks
+#define VIEW_FIELD_NARROW       (float)0.7   // +-45 degrees, more narrow check used to set up ranged attacks
+#define VIEW_FIELD_ULTRA_NARROW (float)0.9   // +-25 degrees, more narrow check used to set up ranged attacks
+
+#define    MAX_ENT_LEAFS    48
+#define MAX_AMMO_TYPES  32        // ???
+#define MAX_AMMO_SLOTS  32        // not really slots
+
+#define HUD_PRINTNOTIFY     1
+#define HUD_PRINTCONSOLE    2
+#define HUD_PRINTTALK       3
+#define HUD_PRINTCENTER     4
+
+#define FCVAR_ARCHIVE      (1 << 0)   // set to cause it to be saved to vars.rc
+#define FCVAR_USERINFO     (1 << 1)   // changes the client's info string
+#define FCVAR_SERVER       (1 << 2)   // notifies players when changed
+#define FCVAR_EXTDLL       (1 << 3)   // defined by external DLL
+#define FCVAR_CLIENTDLL    (1 << 4)   // defined by the client dll
+#define FCVAR_PROTECTED    (1 << 5)   // It's a server cvar, but we don't send the data since it's a password, etc.  Sends 1 if it's not bland/zero, 0 otherwise as value
+#define FCVAR_SPONLY       (1 << 6)   // This cvar cannot be changed by clients connected to a multiplayer server.
+#define FCVAR_PRINTABLEONLY (1 << 7)   // This cvar's string cannot contain unprintable characters ( e.g., used for player name etc ).
+#define FCVAR_UNLOGGED     (1 << 8)   // If this is a FCVAR_SERVER, don't log changes to the log file / console if we are creating a log
+
+typedef enum
+{
+   ignore_monsters = 1, dont_ignore_monsters = 0, missile = 2
+} IGNORE_MONSTERS;
+typedef enum
+{
+   ignore_glass = 1, dont_ignore_glass = 0
+} IGNORE_GLASS;
+typedef enum
+{
+   point_hull = 0, human_hull = 1, large_hull = 2, head_hull = 3
+} HULL;
+
+
+typedef enum
+{
+   at_notice,
+   at_console,                    // same as at_notice, but forces a ConPrintf, not a message box
+   at_aiconsole,                 // same as at_console, but only shown if developer level is 2!
+   at_warning,
+   at_error,
+   at_logged                    // Server print to console ( only in multiplayer games ).
+} ALERT_TYPE;
+
+// 4-22-98  JOHN: added for use in pfnClientPrintf
+typedef enum
+{
+   print_console,
+   print_center,
+   print_chat
+} PRINT_TYPE;
+
+// For integrity checking of content on clients
+typedef enum
+{
+   force_exactfile,              // File on client must exactly match server's file
+   force_model_samebounds,        // For model files only, the geometry must fit in the same bbox
+   force_model_specifybounds     // For model files only, the geometry must fit in the specified bbox
+} FORCE_TYPE;
+
+// Rendering constants
+enum
+{
+   kRenderNormal,                 // src
+   kRenderTransColor,           // c*a+dest*(1-a)
+   kRenderTransTexture,           // src*a+dest*(1-a)
+   kRenderGlow,                 // src*a+dest -- No Z buffer checks
+   kRenderTransAlpha,           // src*srca+dest*(1-srca)
+   kRenderTransAdd              // src*a+dest
+};
+
+enum
+{
+   kRenderFxNone = 0,
+   kRenderFxPulseSlow,
+   kRenderFxPulseFast,
+   kRenderFxPulseSlowWide,
+   kRenderFxPulseFastWide,
+   kRenderFxFadeSlow,
+   kRenderFxFadeFast,
+   kRenderFxSolidSlow,
+   kRenderFxSolidFast,
+   kRenderFxStrobeSlow,
+   kRenderFxStrobeFast,
+   kRenderFxStrobeFaster,
+   kRenderFxFlickerSlow,
+   kRenderFxFlickerFast,
+   kRenderFxNoDissipation,
+   kRenderFxDistort,              // Distort/scale/translate flicker
+   kRenderFxHologram,           // kRenderFxDistort + distance fade
+   kRenderFxDeadPlayer,           // kRenderAmt is the player index
+   kRenderFxExplode,              // Scale up really big!
+   kRenderFxGlowShell,           // Glowing Shell
+   kRenderFxClampMinScale        // Keep this sprite from getting very small (SPRITES only!)
+};
+
+
+
+
+
+typedef struct link_s
+{
+   struct link_s *prev, *next;
+} link_t;
+
+typedef struct edict_s edict_t;
+
+// Use this instead of ALLOC_STRING on constant strings
+#define STRING(offset)       (const char *)(g_pGlobals->pStringBase + (int)offset)
+#define MAKE_STRING(str)   ((int)str - (int)STRING(0))
+#define ENGINE_STR(str)    (const_cast <char *> (STRING (ALLOC_STRING (str))))
+
+
+
+
+// More explicit than "int"
+typedef int EOFFSET;
+
+
+typedef struct hudtextparms_s
+{
+   float x;
+   float y;
+   int effect;
+   uint8 r1, g1, b1, a1;
+   uint8 r2, g2, b2, a2;
+   float fadeinTime;
+   float fadeoutTime;
+   float holdTime;
+   float fxTime;
+   int channel;
+} hudtextparms_t;
+
+
+typedef struct
+{
+   float time;
+   float frametime;
+   float force_retouch;
+   string_t mapname;
+   string_t startspot;
+   float deathmatch;
+   float coop;
+   float teamplay;
+   float serverflags;
+   float found_secrets;
+   vec3_t v_forward;
+   vec3_t v_up;
+   vec3_t v_right;
+   float trace_allsolid;
+   float trace_startsolid;
+   float trace_fraction;
+   vec3_t trace_endpos;
+   vec3_t trace_plane_normal;
+   float trace_plane_dist;
+   edict_t *trace_ent;
+   float trace_inopen;
+   float trace_inwater;
+   int trace_hitgroup;
+   int trace_flags;
+   int msg_entity;
+   int cdAudioTrack;
+   int maxClients;
+   int maxEntities;
+   const char *pStringBase;
+   void *pSaveData;
+   vec3_t vecLandmarkOffset;
+} globalvars_t;
+
+
+extern globalvars_t *g_pGlobals;
+typedef struct entvars_s
+{
+   string_t classname;
+   string_t globalname;
+
+   vec3_t origin;
+   vec3_t oldorigin;
+   vec3_t velocity;
+   vec3_t basevelocity;
+   vec3_t clbasevelocity;        // Base velocity that was passed in to server physics so 
+                                 // client can predict conveyors correctly.  Server zeroes it, so we need to store here, too.
+   vec3_t movedir;
+
+   vec3_t angles;                 // Model angles
+   vec3_t avelocity;              // angle velocity (degrees per second)
+   vec3_t punchangle;           // auto-decaying view angle adjustment
+   vec3_t v_angle;              // Viewing angle (player only)
+
+                                // For parametric entities
+   vec3_t endpos;
+   vec3_t startpos;
+   float impacttime;
+   float starttime;
+
+   int fixangle;                 // 0:nothing, 1:force view angles, 2:add avelocity
+   float idealpitch;
+   float pitch_speed;
+   float ideal_yaw;
+   float yaw_speed;
+
+   int modelindex;
+   string_t model;
+
+   int viewmodel;                 // player's viewmodel
+   int weaponmodel;              // what other players see
+
+   vec3_t absmin;                 // BB max translated to world coord
+   vec3_t absmax;                 // BB max translated to world coord
+   vec3_t mins;                 // local BB min
+   vec3_t maxs;                 // local BB max
+   vec3_t size;                 // maxs - mins
+
+   float ltime;
+   float nextthink;
+
+   int movetype;
+   int solid;
+
+   int skin;
+   int body;                    // sub-model selection for studiomodels
+   int effects;
+
+   float gravity;                 // % of "normal" gravity
+   float friction;              // inverse elasticity of MOVETYPE_BOUNCE
+
+   int light_level;
+
+   int sequence;                 // animation sequence
+   int gaitsequence;              // movement animation sequence for player (0 for none)
+   float frame;                 // % playback position in animation sequences (0..255)
+   float animtime;              // world time when frame was set
+   float framerate;              // animation playback rate (-8x to 8x)
+   uint8 controller[4];           // bone controller setting (0..255)
+   uint8 blending[2];              // blending amount between sub-sequences (0..255)
+
+   float scale;                 // sprite rendering scale (0..255)
+
+   int rendermode;
+   float renderamt;
+   vec3_t rendercolor;
+   int renderfx;
+
+   float health;
+   float frags;
+   int weapons;                 // bit mask for available weapons
+   float takedamage;
+
+   int deadflag;
+   vec3_t view_ofs;              // eye position
+
+   int button;
+   int impulse;
+
+   edict_t *chain;              // Entity pointer when linked into a linked list
+   edict_t *dmg_inflictor;
+   edict_t *enemy;
+   edict_t *aiment;              // entity pointer when MOVETYPE_FOLLOW
+   edict_t *owner;
+   edict_t *groundentity;
+
+   int spawnflags;
+   int flags;
+
+   int colormap;                 // lowbyte topcolor, highbyte bottomcolor
+   int team;
+
+   float max_health;
+   float teleport_time;
+   float armortype;
+   float armorvalue;
+   int waterlevel;
+   int watertype;
+
+   string_t target;
+   string_t targetname;
+   string_t netname;
+   string_t message;
+
+   float dmg_take;
+   float dmg_save;
+   float dmg;
+   float dmgtime;
+
+   string_t noise;
+   string_t noise1;
+   string_t noise2;
+   string_t noise3;
+
+   float speed;
+   float air_finished;
+   float pain_finished;
+   float radsuit_finished;
+
+   edict_t *pContainingEntity;
+
+   int playerclass;
+   float maxspeed;
+
+   float fov;
+   int weaponanim;
+
+   int pushmsec;
+
+   int bInDuck;
+   int flTimeStepSound;
+   int flSwimTime;
+   int flDuckTime;
+   int iStepLeft;
+   float flFallVelocity;
+
+   int gamestate;
+
+   int oldbuttons;
+
+   int groupinfo;
+
+   // For mods
+   int iuser1;
+   int iuser2;
+   int iuser3;
+   int iuser4;
+   float fuser1;
+   float fuser2;
+   float fuser3;
+   float fuser4;
+   vec3_t vuser1;
+   vec3_t vuser2;
+   vec3_t vuser3;
+   vec3_t vuser4;
+   edict_t *euser1;
+   edict_t *euser2;
+   edict_t *euser3;
+   edict_t *euser4;
+} entvars_t;
+
+
+
+typedef struct edict_s edict_t;
+
+struct edict_s
+{
+   int free;
+   int serialnumber;
+   link_t area;                 // linked to a division node or leaf
+   int headnode;                 // -1 to use normal leaf check
+   int num_leafs;
+   short leafnums[MAX_ENT_LEAFS];
+   float freetime;              // sv.time when the object was freed
+   void *pvPrivateData;           // Alloced and freed by engine, used by DLLs
+   entvars_t v;                 // C exported fields from progs
+};
+
+
+#define INTERFACE_VERSION 140
+struct cvar_t
+{
+   char *name;
+   char *string;
+   int flags;
+   float value;
+   cvar_t *next;
+};
+
+
+// Returned by TraceLine
+typedef struct
+{
+   int fAllSolid;                 // if true, plane is not valid
+   int fStartSolid;              // if true, the initial point was in a solid area
+   int fInOpen;
+   int fInWater;
+   float flFraction;              // time completed, 1.0 = didn't hit anything
+   vec3_t vecEndPos;              // final position
+   float flPlaneDist;
+   vec3_t vecPlaneNormal;        // surface normal at impact
+   edict_t *pHit;                 // entity the surface is on
+   int iHitgroup;                 // 0 == generic, non zero is specific body part
+} TraceResult;
+
+typedef uint32 CRC32_t;
+
+// Engine hands this to DLLs for functionality callbacks
+
+typedef struct enginefuncs_s
+{
+   int (*pfnPrecacheModel) (char *s);
+   int (*pfnPrecacheSound) (char *s);
+   void (*pfnSetModel) (edict_t *e, const char *m);
+   int (*pfnModelIndex) (const char *m);
+   int (*pfnModelFrames) (int modelIndex);
+   void (*pfnSetSize) (edict_t *e, const float *rgflMin, const float *rgflMax);
+   void (*pfnChangeLevel) (char *s1, char *s2);
+   void (*pfnGetSpawnParms) (edict_t *ent);
+   void (*pfnSaveSpawnParms) (edict_t *ent);
+   float (*pfnVecToYaw) (const float *rgflVector);
+   void (*pfnVecToAngles) (const float *rgflVectorIn, float *rgflVectorOut);
+   void (*pfnMoveToOrigin) (edict_t *ent, const float *pflGoal, float dist, int iMoveType);
+   void (*pfnChangeYaw) (edict_t *ent);
+   void (*pfnChangePitch) (edict_t *ent);
+   edict_t   *(*pfnFindEntityByString) (edict_t *pentEdictStartSearchAfter, const char *pszField, const char *pszValue);
+   int (*pfnGetEntityIllum) (edict_t *pEnt);
+   edict_t   *(*pfnFindEntityInSphere) (edict_t *pentEdictStartSearchAfter, const float *org, float rad);
+   edict_t   *(*pfnFindClientInPVS) (edict_t *ent);
+   edict_t   *(*pfnEntitiesInPVS) (edict_t *pplayer);
+   void (*pfnMakeVectors) (const float *rgflVector);
+   void (*pfnAngleVectors) (const float *rgflVector, float *forward, float *right, float *up);
+   edict_t   *(*pfnCreateEntity) (void);
+   void (*pfnRemoveEntity) (edict_t *e);
+   edict_t   *(*pfnCreateNamedEntity) (int className);
+   void (*pfnMakeStatic) (edict_t *ent);
+   int (*pfnEntIsOnFloor) (edict_t *e);
+   int (*pfnDropToFloor) (edict_t *e);
+   int (*pfnWalkMove) (edict_t *ent, float yaw, float dist, int mode);
+   void (*pfnSetOrigin) (edict_t *e, const float *rgflOrigin);
+   void (*pfnEmitSound) (edict_t *entity, int channel, const char *sample, float volume, float attenuation, int fFlags, int pitch);
+   void (*pfnEmitAmbientSound) (edict_t *entity, float *pos, const char *samp, float vol, float attenuation, int fFlags, int pitch);
+   void (*pfnTraceLine) (const float *v1, const float *v2, int fNoMonsters, edict_t *pentToSkip, TraceResult *ptr);
+   void (*pfnTraceToss) (edict_t *pent, edict_t *pentToIgnore, TraceResult *ptr);
+   int (*pfnTraceMonsterHull) (edict_t *ent, const float *v1, const float *v2, int fNoMonsters, edict_t *pentToSkip, TraceResult *ptr);
+   void (*pfnTraceHull) (const float *v1, const float *v2, int fNoMonsters, int hullNumber, edict_t *pentToSkip, TraceResult *ptr);
+   void (*pfnTraceModel) (const float *v1, const float *v2, int hullNumber, edict_t *pent, TraceResult *ptr);
+   const char *(*pfnTraceTexture) (edict_t *pTextureEntity, const float *v1, const float *v2);
+   void (*pfnTraceSphere) (const float *v1, const float *v2, int fNoMonsters, float radius, edict_t *pentToSkip, TraceResult *ptr);
+   void (*pfnGetAimVector) (edict_t *ent, float speed, float *rgflReturn);
+   void (*pfnServerCommand) (char *str);
+   void (*pfnServerExecute) (void);
+   void (*pfnClientCommand) (edict_t *ent, char const *szFmt, ...);
+   void (*pfnParticleEffect) (const float *org, const float *dir, float color, float count);
+   void (*pfnLightStyle) (int style, char *val);
+   int (*pfnDecalIndex) (const char *name);
+   int (*pfnPointContents) (const float *rgflVector);
+   void (*pfnMessageBegin) (int msg_dest, int msg_type, const float *pOrigin, edict_t *ed);
+   void (*pfnMessageEnd) (void);
+   void (*pfnWriteByte) (int value);
+   void (*pfnWriteChar) (int value);
+   void (*pfnWriteShort) (int value);
+   void (*pfnWriteLong) (int value);
+   void (*pfnWriteAngle) (float flValue);
+   void (*pfnWriteCoord) (float flValue);
+   void (*pfnWriteString) (const char *sz);
+   void (*pfnWriteEntity) (int value);
+   void (*pfnCVarRegister) (cvar_t *pCvar);
+   float (*pfnCVarGetFloat) (const char *szVarName);
+   const char *(*pfnCVarGetString) (const char *szVarName);
+   void (*pfnCVarSetFloat) (const char *szVarName, float flValue);
+   void (*pfnCVarSetString) (const char *szVarName, const char *szValue);
+   void (*pfnAlertMessage) (ALERT_TYPE atype, char *szFmt, ...);
+   void (*pfnEngineFprintf) (void *pfile, char *szFmt, ...);
+   void      *(*pfnPvAllocEntPrivateData) (edict_t *ent, int32 cb);
+   void      *(*pfnPvEntPrivateData) (edict_t *ent);
+   void (*pfnFreeEntPrivateData) (edict_t *ent);
+   const char *(*pfnSzFromIndex) (int stingPtr);
+   int (*pfnAllostring) (const char *szValue);
+   struct entvars_s *(*pfnGetVarsOfEnt) (edict_t *ent);
+   edict_t   *(*pfnPEntityOfEntOffset) (int iEntOffset);
+   int (*pfnEntOffsetOfPEntity) (const edict_t *ent);
+   int (*pfnIndexOfEdict) (const edict_t *ent);
+   edict_t   *(*pfnPEntityOfEntIndex) (int entIndex);
+   edict_t   *(*pfnFindEntityByVars) (struct entvars_s *pvars);
+   void      *(*pfnGetModelPtr) (edict_t *ent);
+   int (*pfnRegUserMsg) (const char *pszName, int iSize);
+   void (*pfnAnimationAutomove) (const edict_t *ent, float flTime);
+   void (*pfnGetBonePosition) (const edict_t *ent, int iBone, float *rgflOrigin, float *rgflAngles);
+   uint32 (*pfnFunctionFromName) (const char *pName);
+   const char *(*pfnNameForFunction) (uint32 function);
+   void (*pfnClientPrintf) (edict_t *ent, PRINT_TYPE ptype, const char *szMsg);   // JOHN: engine callbacks so game DLL can print messages to individual clients
+   void (*pfnServerPrint) (const char *szMsg);
+   const char *(*pfnCmd_Args) (void);   // these 3 added 
+   const char *(*pfnCmd_Argv) (int argc);   // so game DLL can easily 
+   int (*pfnCmd_Argc) (void);     // access client 'cmd' strings
+   void (*pfnGetAttachment) (const edict_t *ent, int iAttachment, float *rgflOrigin, float *rgflAngles);
+   void (*pfnCRC32_Init) (CRC32_t *pulCRC);
+   void (*pfnCRC32_ProcessBuffer) (CRC32_t *pulCRC, void *p, int len);
+   void (*pfnCRC32_ProcessByte) (CRC32_t *pulCRC, uint8 ch);
+   CRC32_t (*pfnCRC32_Final) (CRC32_t pulCRC);
+   int32 (*pfnRandomLong) (int32 lLow, int32 lHigh);
+   float (*pfnRandomFloat) (float flLow, float flHigh);
+   void (*pfnSetView) (const edict_t *client, const edict_t *pViewent);
+   float (*pfnTime) (void);
+   void (*pfnCrosshairAngle) (const edict_t *client, float pitch, float yaw);
+   uint8      *(*pfnLoadFileForMe) (char const *szFilename, int *pLength);
+   void (*pfnFreeFile) (void *buffer);
+   void (*pfnEndSection) (const char *pszSectionName);   // trigger_endsection
+   int (*pfnCompareFileTime) (char *filename1, char *filename2, int *compare);
+   void (*pfnGetGameDir) (char *szGetGameDir);
+   void (*pfnCvar_RegisterVariable) (cvar_t *variable);
+   void (*pfnFadeClientVolume) (const edict_t *ent, int fadePercent, int fadeOutSeconds, int holdTime, int fadeInSeconds);
+   void (*pfnSetClientMaxspeed) (const edict_t *ent, float fNewMaxspeed);
+   edict_t   *(*pfnCreateFakeClient) (const char *netname);   // returns NULL if fake client can't be created
+   void (*pfnRunPlayerMove) (edict_t *fakeclient, const float *viewangles, float forwardmove, float sidemove, float upmove, uint16 buttons, uint8 impulse, uint8 msec);
+   int (*pfnNumberOfEntities) (void);
+   char      *(*pfnGetInfoKeyBuffer) (edict_t *e);   // passing in NULL gets the serverinfo
+   char      *(*pfnInfoKeyValue) (char *infobuffer, char const *key);
+   void (*pfnSetKeyValue) (char *infobuffer, char *key, char *value);
+   void (*pfnSetClientKeyValue) (int clientIndex, char *infobuffer, char const *key, char const *value);
+   int (*pfnIsMapValid) (char *szFilename);
+   void (*pfnStaticDecal) (const float *origin, int decalIndex, int entityIndex, int modelIndex);
+   int (*pfnPrecacheGeneric) (char *s);
+   int (*pfnGetPlayerUserId) (edict_t *e);   // returns the server assigned userid for this player.  useful for logging frags, etc.  returns -1 if the edict couldn't be found in the list of clients
+   void (*pfnBuildSoundMsg) (edict_t *entity, int channel, const char *sample, float volume, float attenuation, int fFlags, int pitch, int msg_dest, int msg_type, const float *pOrigin, edict_t *ed);
+   int (*pfnIsDedicatedServer) (void);   // is this a dedicated server?
+   cvar_t    *(*pfnCVarGetPointer) (const char *szVarName);
+   unsigned int (*pfnGetPlayerWONId) (edict_t *e);   // returns the server assigned WONid for this player.  useful for logging frags, etc.  returns -1 if the edict couldn't be found in the list of clients
+
+   void (*pfnInfo_RemoveKey) (char *s, const char *key);
+   const char *(*pfnGetPhysicsKeyValue) (const edict_t *client, const char *key);
+   void (*pfnSetPhysicsKeyValue) (const edict_t *client, const char *key, const char *value);
+   const char *(*pfnGetPhysicsInfoString) (const edict_t *client);
+   uint16 (*pfnPrecacheEvent) (int type, const char *psz);
+   void (*pfnPlaybackEvent) (int flags, const edict_t *pInvoker, uint16 evIndexOfEntity, float delay, float *origin, float *angles, float fparam1, float fparam2, int iparam1, int iparam2, int bparam1, int bparam2);
+   uint8 *(*pfnSetFatPVS) (float *org);
+   uint8 *(*pfnSetFatPAS) (float *org);
+   int (*pfnCheckVisibility) (const edict_t *entity, uint8 *pset);
+   void (*pfnDeltaSetField) (struct delta_s *pFields, const char *fieldname);
+   void (*pfnDeltaUnsetField) (struct delta_s *pFields, const char *fieldname);
+   void (*pfnDeltaAddEncoder) (char *name, void (*conditionalencode) (struct delta_s *pFields, const uint8 *from, const uint8 *to));
+   int (*pfnGetCurrentPlayer) (void);
+   int (*pfnCanSkipPlayer) (const edict_t *player);
+   int (*pfnDeltaFindField) (struct delta_s *pFields, const char *fieldname);
+   void (*pfnDeltaSetFieldByIndex) (struct delta_s *pFields, int fieldNumber);
+   void (*pfnDeltaUnsetFieldByIndex) (struct delta_s *pFields, int fieldNumber);
+   void (*pfnSetGroupMask) (int mask, int op);
+   int (*pfnCreateInstancedBaseline) (int classname, struct entity_state_s *baseline);
+   void (*pfnCvar_DirectSet) (struct cvar_t *var, char *value);
+   void (*pfnForceUnmodified) (FORCE_TYPE type, float *mins, float *maxs, const char *szFilename);
+   void (*pfnGetPlayerStats) (const edict_t *client, int *ping, int *packet_loss);
+   void (*pfnAddServerCommand) (char *cmd_name, void (*function) (void));
+
+   int (*pfnVoice_GetClientListening) (int iReceiver, int iSender);
+   int (*pfnVoice_SetClientListening) (int iReceiver, int iSender, int bListen);
+
+   const char *(*pfnGetPlayerAuthId) (edict_t *e);
+
+   struct sequenceEntry_s *(*pfnSequenceGet) (const char *fileName, const char *entryName);
+   struct sentenceEntry_s *(*pfnSequencePickSentence) (const char *groupName, int pickMethod, int *picked);
+
+   int (*pfnGetFileSize) (char *szFilename);
+   unsigned int (*pfnGetApproxWavePlayLen) (const char *filepath);
+
+   int (*pfnIsCareerMatch) (void);
+   int (*pfnGetLocalizedStringLength) (const char *label);
+   void (*pfnRegisterTutorMessageShown) (int mid);
+   int (*pfnGetTimesTutorMessageShown) (int mid);
+   void (*pfnProcessTutorMessageDecayBuffer) (int *buffer, int bufferLength);
+   void (*pfnConstructTutorMessageDecayBuffer) (int *buffer, int bufferLength);
+   void (*pfnResetTutorMessageDecayData) (void);
+
+   void (*pfnQueryClientCVarValue) (const edict_t *player, const char *cvarName);
+   void (*pfnQueryClientCVarValue2) (const edict_t *player, const char *cvarName, int requestID);
+   int (*pfnCheckParm)(const char *pchCmdLineToken, char **ppnext);
+
+} enginefuncs_t;
+
+// Passed to pfnKeyValue
+typedef struct KeyValueData_s
+{
+   char *szClassName; // in: entity classname
+   char const *szKeyName;   // in: name of key
+   char *szValue;     // in: value of key
+   int32 fHandled;    // out: DLL sets to true if key-value pair was understood
+} KeyValueData;
+
+
+#define ARRAYSIZE_HLSDK(p)       (int) (sizeof(p)/sizeof(p[0]))
+typedef struct customization_s customization_t;
+
+typedef struct
+{
+   // Initialize/shutdown the game (one-time call after loading of game .dll )
+   void (*pfnGameInit) (void);
+   int (*pfnSpawn) (edict_t *pent);
+   void (*pfnThink) (edict_t *pent);
+   void (*pfnUse) (edict_t *pentUsed, edict_t *pentOther);
+   void (*pfnTouch) (edict_t *pentTouched, edict_t *pentOther);
+   void (*pfnBlocked) (edict_t *pentBlocked, edict_t *pentOther);
+   void (*pfnKeyValue) (edict_t *pentKeyvalue, KeyValueData *pkvd);
+   void (*pfnSave) (edict_t *pent, struct SAVERESTOREDATA *pSaveData);
+   int (*pfnRestore) (edict_t *pent, SAVERESTOREDATA *pSaveData, int globalEntity);
+   void (*pfnSetAbsBox) (edict_t *pent);
+
+   void (*pfnSaveWriteFields) (SAVERESTOREDATA *, const char *, void *, struct TYPEDESCRIPTION *, int);
+   void (*pfnSaveReadFields) (SAVERESTOREDATA *, const char *, void *, TYPEDESCRIPTION *, int);
+
+   void (*pfnSaveGlobalState) (SAVERESTOREDATA *);
+   void (*pfnRestoreGlobalState) (SAVERESTOREDATA *);
+   void (*pfnResetGlobalState) (void);
+
+   int (*pfnClientConnect) (edict_t *ent, const char *pszName, const char *pszAddress, char szRejectReason[128]);
+
+   void (*pfnClientDisconnect) (edict_t *ent);
+   void (*pfnClientKill) (edict_t *ent);
+   void (*pfnClientPutInServer) (edict_t *ent);
+   void (*pfnClientCommand) (edict_t *ent);
+   void (*pfnClientUserInfoChanged) (edict_t *ent, char *infobuffer);
+
+   void (*pfnServerActivate) (edict_t *edictList, int edictCount, int clientMax);
+   void (*pfnServerDeactivate) (void);
+
+   void (*pfnPlayerPreThink) (edict_t *ent);
+   void (*pfnPlayerPostThink) (edict_t *ent);
+
+   void (*pfnStartFrame) (void);
+   void (*pfnParmsNewLevel) (void);
+   void (*pfnParmsChangeLevel) (void);
+
+   // Returns string describing current .dll.  E.g., TeamFotrress 2, Half-Life
+   const char *(*pfnGetGameDescription) (void);
+
+   // Notify dll about a player customization.
+   void (*pfnPlayerCustomization) (edict_t *ent, struct customization_s *pCustom);
+
+   // Spectator funcs
+   void (*pfnSpectatorConnect) (edict_t *ent);
+   void (*pfnSpectatorDisconnect) (edict_t *ent);
+   void (*pfnSpectatorThink) (edict_t *ent);
+
+   // Notify game .dll that engine is going to shut down.  Allows mod authors to set a breakpoint.
+   void (*pfnSys_Error) (const char *error_string);
+
+   void (*pfnPM_Move) (struct playermove_s *ppmove, int server);
+   void (*pfnPM_Init) (struct playermove_s *ppmove);
+   char (*pfnPM_FindTextureType) (char *name);
+   void (*pfnSetupVisibility) (struct edict_s *pViewEntity, struct edict_s *client, uint8 **pvs, uint8 **pas);
+   void (*pfnUpdateClientData) (const struct edict_s *ent, int sendweapons, struct clientdata_s *cd);
+   int (*pfnAddToFullPack) (struct entity_state_s *state, int e, edict_t *ent, edict_t *host, int hostflags, int player, uint8 *pSet);
+   void (*pfnCreateBaseline) (int player, int eindex, struct entity_state_s *baseline, struct edict_s *entity, int playermodelindex, float* player_mins, float* player_maxs);
+   void (*pfnRegisterEncoders) (void);
+   int (*pfnGetWeaponData) (struct edict_s *player, struct weapon_data_s *info);
+
+   void (*pfnCmdStart) (const edict_t *player, const struct c *cmd, unsigned int random_seed);
+   void (*pfnCmdEnd) (const edict_t *player);
+
+   // Return 1 if the packet is valid.  Set response_buffer_size if you want to send a response packet.  Incoming, it holds the max
+   //  size of the response_buffer, so you must zero it out if you choose not to respond.
+   int (*pfnConnectionlessPacket) (const struct netadr_s *net_from, const char *args, char *response_buffer, int *response_buffer_size);
+
+   // Enumerates player hulls.  Returns 0 if the hull number doesn't exist, 1 otherwise
+   int (*pfnGetHullBounds) (int hullnumber, float *mins, float *maxs);
+
+   // Create baselines for certain "unplaced" items.
+   void (*pfnCreateInstancedBaselines) (void);
+
+   // One of the pfnForceUnmodified files failed the consistency check for the specified player
+   // Return 0 to allow the client to continue, 1 to force immediate disconnection ( with an optional disconnect message of up to 256 characters )
+   int (*pfnInconsistentFile) (const struct edict_s *player, const char *szFilename, char *disconnect_message);
+
+   // The game .dll should return 1 if lag compensation should be allowed ( could also just set
+   //  the sv_unlag cvar.
+   // Most games right now should return 0, until client-side weapon prediction code is written
+   //  and tested for them.
+   int (*pfnAllowLagCompensation) (void);
+} gamefuncs_t;
+
+// Current version.
+#define NEWGAMEDLLFUNCS_VERSION    1
+
+typedef struct
+{
+   // Called right before the object's memory is freed. 
+   // Calls its destructor.
+   void (*pfnOnFreeEntPrivateData) (edict_t *pEnt);
+   void (*pfnGameShutdown) (void);
+   int (*pfnShouldCollide) (edict_t *pentTouched, edict_t *pentOther);
+
+   void (*pfnCvarValue) (const edict_t *pEnt, const char *value);
+   void (*pfnCvarValue2) (const edict_t *pEnt, int requestID, const char *cvarName, const char *value);
+} newgamefuncs_t;
+
+
+// Must be provided by user of this code
+extern enginefuncs_t g_engfuncs;
+
+// The actual engine callbacks
+#define GETPLAYERUSERID (*g_engfuncs.pfnGetPlayerUserId)
+#define PRECACHE_MODEL (*g_engfuncs.pfnPrecacheModel)
+#define PRECACHE_SOUND (*g_engfuncs.pfnPrecacheSound)
+#define PRECACHE_GENERIC (*g_engfuncs.pfnPrecacheGeneric)
+#define SET_MODEL       (*g_engfuncs.pfnSetModel)
+#define MODEL_INDEX     (*g_engfuncs.pfnModelIndex)
+#define MODEL_FRAMES   (*g_engfuncs.pfnModelFrames)
+#define SET_SIZE       (*g_engfuncs.pfnSetSize)
+#define CHANGE_LEVEL   (*g_engfuncs.pfnChangeLevel)
+#define GET_INFOKEYBUFFER   (*g_engfuncs.pfnGetInfoKeyBuffer)
+#define INFOKEY_VALUE      (*g_engfuncs.pfnInfoKeyValue)
+#define SET_CLIENT_KEYVALUE   (*g_engfuncs.pfnSetClientKeyValue)
+#define REG_SVR_COMMAND      (*g_engfuncs.pfnAddServerCommand)
+#define SERVER_PRINT      (*g_engfuncs.pfnServerPrint)
+#define SET_SERVER_KEYVALUE   (*g_engfuncs.pfnSetKeyValue)
+#define GET_SPAWN_PARMS (*g_engfuncs.pfnGetSpawnParms)
+#define SAVE_SPAWN_PARMS (*g_engfuncs.pfnSaveSpawnParms)
+#define VEC_TO_YAW      (*g_engfuncs.pfnVecToYaw)
+#define VEC_TO_ANGLES   (*g_engfuncs.pfnVecToAngles)
+#define MOVE_TO_ORIGIN (*g_engfuncs.pfnMoveToOrigin)
+#define oldCHANGE_YAW  (*g_engfuncs.pfnChangeYaw)
+#define CHANGE_PITCH   (*g_engfuncs.pfnChangePitch)
+#define MAKE_VECTORS   (*g_engfuncs.pfnMakeVectors)
+#define CREATE_ENTITY  (*g_engfuncs.pfnCreateEntity)
+#define REMOVE_ENTITY  (*g_engfuncs.pfnRemoveEntity)
+#define CREATE_NAMED_ENTITY (*g_engfuncs.pfnCreateNamedEntity)
+#define MAKE_STATIC    (*g_engfuncs.pfnMakeStatic)
+#define ENT_IS_ON_FLOOR (*g_engfuncs.pfnEntIsOnFloor)
+#define DROP_TO_FLOOR  (*g_engfuncs.pfnDropToFloor)
+#define WALK_MOVE      (*g_engfuncs.pfnWalkMove)
+#define SET_ORIGIN     (*g_engfuncs.pfnSetOrigin)
+#define EMIT_SOUND_DYN2 (*g_engfuncs.pfnEmitSound)
+#define BUILD_SOUND_MSG (*g_engfuncs.pfnBuildSoundMsg)
+#define TRACE_LINE       (*g_engfuncs.pfnTraceLine)
+#define TRACE_TOSS       (*g_engfuncs.pfnTraceToss)
+#define TRACE_MONSTER_HULL (*g_engfuncs.pfnTraceMonsterHull)
+#define TRACE_HULL       (*g_engfuncs.pfnTraceHull)
+#define GET_AIM_VECTOR   (*g_engfuncs.pfnGetAimVector)
+#define SERVER_COMMAND   (*g_engfuncs.pfnServerCommand)
+#define SERVER_EXECUTE   (*g_engfuncs.pfnServerExecute)
+#define CLIENT_COMMAND   (*g_engfuncs.pfnClientCommand)
+#define PARTICLE_EFFECT  (*g_engfuncs.pfnParticleEffect)
+#define LIGHT_STYLE      (*g_engfuncs.pfnLightStyle)
+#define DECAL_INDEX      (*g_engfuncs.pfnDecalIndex)
+#define POINT_CONTENTS   (*g_engfuncs.pfnPointContents)
+#define CRC32_INIT          (*g_engfuncs.pfnCRC32_Init)
+#define CRC32_PROCESS_BUFFER (*g_engfuncs.pfnCRC32_ProcessBuffer)
+#define CRC32_PROCESS_BYTE  (*g_engfuncs.pfnCRC32_ProcessByte)
+#define CRC32_FINAL         (*g_engfuncs.pfnCRC32_Final)
+#define RANDOM_LONG       (*g_engfuncs.pfnRandomLong)
+#define RANDOM_FLOAT      (*g_engfuncs.pfnRandomFloat)
+#define GETPLAYERAUTHID   (*g_engfuncs.pfnGetPlayerAuthId)
+
+#define MESSAGE_END      (*g_engfuncs.pfnMessageEnd)
+#define WRITE_BYTE       (*g_engfuncs.pfnWriteByte)
+#define WRITE_CHAR       (*g_engfuncs.pfnWriteChar)
+#define WRITE_SHORT      (*g_engfuncs.pfnWriteShort)
+#define WRITE_LONG       (*g_engfuncs.pfnWriteLong)
+#define WRITE_ANGLE      (*g_engfuncs.pfnWriteAngle)
+#define WRITE_COORD      (*g_engfuncs.pfnWriteCoord)
+#define WRITE_STRING   (*g_engfuncs.pfnWriteString)
+#define WRITE_ENTITY   (*g_engfuncs.pfnWriteEntity)
+#define CVAR_REGISTER  (*g_engfuncs.pfnCVarRegister)
+#define CVAR_GET_FLOAT (*g_engfuncs.pfnCVarGetFloat)
+#define CVAR_GET_STRING (*g_engfuncs.pfnCVarGetString)
+#define CVAR_SET_FLOAT (*g_engfuncs.pfnCVarSetFloat)
+#define CVAR_SET_STRING (*g_engfuncs.pfnCVarSetString)
+#define CVAR_GET_POINTER (*g_engfuncs.pfnCVarGetPointer)
+#define ALERT           (*g_engfuncs.pfnAlertMessage)
+#define ENGINE_FPRINTF  (*g_engfuncs.pfnEngineFprintf)
+#define ALLOC_PRIVATE   (*g_engfuncs.pfnPvAllocEntPrivateData)
+#define GET_PRIVATE(pent)  (pent ? (pent->pvPrivateData) : NULL);
+#define FREE_PRIVATE   (*g_engfuncs.pfnFreeEntPrivateData)
+#define ALLOC_STRING   (*g_engfuncs.pfnAllostring)
+#define FIND_ENTITY_BY_STRING   (*g_engfuncs.pfnFindEntityByString)
+#define GETENTITYILLUM   (*g_engfuncs.pfnGetEntityIllum)
+#define FIND_ENTITY_IN_SPHERE (*g_engfuncs.pfnFindEntityInSphere)
+#define FIND_CLIENT_IN_PVS   (*g_engfuncs.pfnFindClientInPVS)
+#define EMIT_AMBIENT_SOUND   (*g_engfuncs.pfnEmitAmbientSound)
+#define GET_MODEL_PTR        (*g_engfuncs.pfnGetModelPtr)
+#define REG_USER_MSG         (*g_engfuncs.pfnRegUserMsg)
+#define GET_BONE_POSITION    (*g_engfuncs.pfnGetBonePosition)
+#define FUNCTION_FROM_NAME   (*g_engfuncs.pfnFunctionFromName)
+#define NAME_FOR_FUNCTION    (*g_engfuncs.pfnNameForFunction)
+#define TRACE_TEXTURE        (*g_engfuncs.pfnTraceTexture)
+#define CLIENT_PRINTF        (*g_engfuncs.pfnClientPrintf)
+#define CMD_ARGS             (*g_engfuncs.pfnCmd_Args)
+#define CMD_ARGC             (*g_engfuncs.pfnCmd_Argc)
+#define CMD_ARGV             (*g_engfuncs.pfnCmd_Argv)
+#define GET_ATTACHMENT       (*g_engfuncs.pfnGetAttachment)
+#define SET_VIEW             (*g_engfuncs.pfnSetView)
+#define SET_CROSSHAIRANGLE   (*g_engfuncs.pfnCrosshairAngle)
+#define LOAD_FILE_FOR_ME     (*g_engfuncs.pfnLoadFileForMe)
+#define FREE_FILE            (*g_engfuncs.pfnFreeFile)
+#define COMPARE_FILE_TIME    (*g_engfuncs.pfnCompareFileTime)
+#define GET_GAME_DIR         (*g_engfuncs.pfnGetGameDir)
+#define IS_MAP_VALID         (*g_engfuncs.pfnIsMapValid)
+#define NUMBER_OF_ENTITIES   (*g_engfuncs.pfnNumberOfEntities)
+#define IS_DEDICATED_SERVER  (*g_engfuncs.pfnIsDedicatedServer)
+#define PRECACHE_EVENT       (*g_engfuncs.pfnPrecacheEvent)
+#define PLAYBACK_EVENT_FULL  (*g_engfuncs.pfnPlaybackEvent)
+#define ENGINE_SET_PVS       (*g_engfuncs.pfnSetFatPVS)
+#define ENGINE_SET_PAS       (*g_engfuncs.pfnSetFatPAS)
+#define ENGINE_CHECK_VISIBILITY (*g_engfuncs.pfnCheckVisibility)
+#define DELTA_SET              (*g_engfuncs.pfnDeltaSetField)
+#define DELTA_UNSET            (*g_engfuncs.pfnDeltaUnsetField)
+#define DELTA_ADDENCODER       (*g_engfuncs.pfnDeltaAddEncoder)
+#define ENGINE_CURRENT_PLAYER  (*g_engfuncs.pfnGetCurrentPlayer)
+#define ENGINE_CANSKIP         (*g_engfuncs.pfnCanSkipPlayer)
+#define DELTA_FINDFIELD        (*g_engfuncs.pfnDeltaFindField)
+#define DELTA_SETBYINDEX       (*g_engfuncs.pfnDeltaSetFieldByIndex)
+#define DELTA_UNSETBYINDEX     (*g_engfuncs.pfnDeltaUnsetFieldByIndex)
+#define ENGINE_GETPHYSINFO     (*g_engfuncs.pfnGetPhysicsInfoString)
+#define ENGINE_SETGROUPMASK    (*g_engfuncs.pfnSetGroupMask)
+#define ENGINE_INSTANCE_BASELINE (*g_engfuncs.pfnCreateInstancedBaseline)
+#define ENGINE_FORCE_UNMODIFIED (*g_engfuncs.pfnForceUnmodified)
+#define PLAYER_CNX_STATS       (*g_engfuncs.pfnGetPlayerStats)
+
+static inline void MESSAGE_BEGIN (int msg_dest, int msg_type, const float *pOrigin = NULL, edict_t *ed = NULL)
+{
+   (*g_engfuncs.pfnMessageBegin) (msg_dest, msg_type, pOrigin, ed);
+}
+
+static inline edict_t *FIND_ENTITY_BY_CLASSNAME (edict_t *entStart, const char *pszName)
+{
+   return FIND_ENTITY_BY_STRING (entStart, "classname", pszName);
+}
+
+static inline edict_t *FIND_ENTITY_BY_TARGETNAME (edict_t *entStart, const char *pszName)
+{
+   return FIND_ENTITY_BY_STRING (entStart, "targetname", pszName);
+}
+
+// for doing a reverse lookup. Say you have a door, and want to find its button.
+static inline edict_t *FIND_ENTITY_BY_TARGET (edict_t *entStart, const char *pszName)
+{
+   return FIND_ENTITY_BY_STRING (entStart, "target", pszName);
+}
+
+
+#endif //EXTDLL_H

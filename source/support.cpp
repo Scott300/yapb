@@ -11,41 +11,15 @@
 
 ConVar yb_display_menu_text ("yb_display_menu_text", "1");
 
-ConVar mp_roundtime ("mp_roundtime", NULL, VT_NOREGISTER);
-ConVar mp_freezetime ("mp_freezetime", NULL, VT_NOREGISTER, true);
-
-uint16 FixedUnsigned16 (float value, float scale)
-{
-   int output = (static_cast <int> (value * scale));
-
-   if (output < 0)
-      output = 0;
-
-   if (output > 0xffff)
-      output = 0xffff;
-
-   return static_cast <uint16> (output);
-}
-
-short FixedSigned16 (float value, float scale)
-{
-   int output = (static_cast <int> (value * scale));
-
-   if (output > 32767)
-      output = 32767;
-
-   if (output < -32768)
-      output = -32768;
-
-   return static_cast <short> (output);
-}
+ConVar mp_roundtime ("mp_roundtime", nullptr, VT_NOREGISTER);
+ConVar mp_freezetime ("mp_freezetime", nullptr, VT_NOREGISTER, true);
 
 const char *FormatBuffer (const char *format, ...)
 {
    static char strBuffer[2][MAX_PRINT_BUFFER];
    static int rotator = 0;
 
-   if (format == NULL)
+   if (format == nullptr)
       return strBuffer[rotator];
       
    static char *ptr = strBuffer[rotator ^= 1];
@@ -69,7 +43,7 @@ bool IsAlive (edict_t *ent)
 float GetShootingConeDeviation (edict_t *ent, Vector *position)
 {
    const Vector &dir = (*position - (ent->v.origin + ent->v.view_ofs)).Normalize ();
-   MakeVectors (ent->v.v_angle);
+   engine.MakeVectors (ent->v.v_angle);
 
    // he's facing it, he meant it
    return g_pGlobals->v_forward | dir;
@@ -77,7 +51,7 @@ float GetShootingConeDeviation (edict_t *ent, Vector *position)
 
 bool IsInViewCone (const Vector &origin, edict_t *ent)
 {
-   MakeVectors (ent->v.v_angle);
+   engine.MakeVectors (ent->v.v_angle);
 
    if (((origin - (ent->v.origin + ent->v.view_ofs)).Normalize () | g_pGlobals->v_forward) >= cosf (((ent->v.fov > 0 ? ent->v.fov : 90.0f) * 0.5f) * MATH_D2R))
       return true;
@@ -106,59 +80,59 @@ void DisplayMenuToClient (edict_t *ent, MenuText *menu)
 
    int clientIndex = engine.IndexOfEntity (ent) - 1;
 
-   if (menu != NULL)
+   if (menu == nullptr)
    {
-      String tempText = String (menu->menuText);
-      tempText.Replace ("\v", "\n");
+      MessageWriter::Begin (MSG_ONE_UNRELIABLE, engine.FindMessageId (NETMSG_SHOWMENU), nullptr, ent)
+         .Short (0)
+         .Char (0)
+         .Byte (0)
+         .Str ("")
+         .End ();
 
-      const char *text = engine.TraslateMessage (tempText.GetBuffer ());
-      tempText = String (text);
-
-      // make menu looks best
-      for (int i = 0; i <= 9; i++)
-         tempText.Replace (FormatBuffer ("%d.", i), FormatBuffer ("\\r%d.\\w", i));
-
-      if ((g_gameFlags & (GAME_XASH | GAME_MOBILITY)) && !yb_display_menu_text.GetBool ())
-         text = " ";
-      else
-         text = tempText.GetBuffer ();
-
-      while (strlen (text) >= 64)
-      {
-         MESSAGE_BEGIN (MSG_ONE_UNRELIABLE, engine.FindMessageId (NETMSG_SHOWMENU), NULL, ent);
-            WRITE_SHORT (menu->validSlots);
-            WRITE_CHAR (-1);
-            WRITE_BYTE (1);
-
-         for (int i = 0; i <= 63; i++)
-            WRITE_CHAR (text[i]);
-
-         MESSAGE_END ();
-
-         text += 64;
-      }
-
-      MESSAGE_BEGIN (MSG_ONE_UNRELIABLE, engine.FindMessageId (NETMSG_SHOWMENU), NULL, ent);
-         WRITE_SHORT (menu->validSlots);
-         WRITE_CHAR (-1);
-         WRITE_BYTE (0);
-         WRITE_STRING (text);
-      MESSAGE_END();
-
-      g_clients[clientIndex].menu = menu;
+      g_clients[clientIndex].menu = nullptr;
+      return;
    }
+
+   String tempText = String (menu->menuText);
+   tempText.Replace ("\v", "\n");
+
+   const char *text = engine.TraslateMessage (tempText.GetBuffer ());
+   tempText = String (text);
+
+   // make menu looks best
+   for (int i = 0; i <= 9; i++)
+      tempText.Replace (FormatBuffer ("%d.", i), FormatBuffer ("\\r%d.\\w", i));
+
+   if ((g_gameFlags & (GAME_XASH | GAME_MOBILITY)) && !yb_display_menu_text.GetBool ())
+      text = " ";
    else
-   {
-      MESSAGE_BEGIN (MSG_ONE_UNRELIABLE, engine.FindMessageId (NETMSG_SHOWMENU), NULL, ent);
-         WRITE_SHORT (0);
-         WRITE_CHAR (0);
-         WRITE_BYTE (0);
-         WRITE_STRING ("");
-      MESSAGE_END();
+      text = tempText.GetBuffer ();
 
-     g_clients[clientIndex].menu = NULL;
+   while (strlen (text) >= 64)
+   {
+      MessageWriter msg;
+      
+      msg.Begin (MSG_ONE_UNRELIABLE, engine.FindMessageId (NETMSG_SHOWMENU), nullptr, ent);
+      msg.Short (menu->validSlots);
+      msg.Char (-1);
+      msg.Byte (1);
+
+      for (int i = 0; i <= 63; i++)
+         msg.Char (text[i]);
+
+      msg.End ();
+      text += 64;
    }
-   CLIENT_COMMAND (ent, "speak \"player/geiger1\"\n"); // Stops others from hearing menu sounds..
+
+   MessageWriter::Begin (MSG_ONE_UNRELIABLE, engine.FindMessageId (NETMSG_SHOWMENU), nullptr, ent)
+      .Short (menu->validSlots)
+      .Char (-1)
+      .Byte (0)
+      .Str (text)
+      .End ();
+
+   g_clients[clientIndex].menu = menu;
+   g_engfuncs.pfnClientCommand (ent, "speak \"player/geiger1\"\n"); // Stops others from hearing menu sounds..
 }
 
 void DecalTrace (entvars_t *pev, TraceResult *trace, int logotypeIndex)
@@ -171,10 +145,10 @@ void DecalTrace (entvars_t *pev, TraceResult *trace, int logotypeIndex)
       logotypes = String ("{biohaz;{graf003;{graf004;{graf005;{lambda06;{target;{hand1;{spit2;{bloodhand6;{foot_l;{foot_r").Split (";");
 
    int entityIndex = -1, message = TE_DECAL;
-   int decalIndex = (*g_engfuncs.pfnDecalIndex) (logotypes[logotypeIndex].GetBuffer ());
+   int decalIndex = g_engfuncs.pfnDecalIndex (logotypes[logotypeIndex].GetBuffer ());
 
    if (decalIndex < 0)
-      decalIndex = (*g_engfuncs.pfnDecalIndex) ("{lambda06");
+      decalIndex = g_engfuncs.pfnDecalIndex ("{lambda06");
 
    if (trace->flFraction == 1.0f)
       return;
@@ -208,41 +182,44 @@ void DecalTrace (entvars_t *pev, TraceResult *trace, int logotypeIndex)
       }
    }
 
+
    if (logotypes[logotypeIndex].Contains ("{"))
    {
-      MESSAGE_BEGIN (MSG_BROADCAST, SVC_TEMPENTITY);
-         WRITE_BYTE (TE_PLAYERDECAL);
-         WRITE_BYTE (engine.IndexOfEntity (pev->pContainingEntity));
-         WRITE_COORD (trace->vecEndPos.x);
-         WRITE_COORD (trace->vecEndPos.y);
-         WRITE_COORD (trace->vecEndPos.z);
-         WRITE_SHORT (static_cast <short> (engine.IndexOfEntity (trace->pHit)));
-         WRITE_BYTE (decalIndex);
-      MESSAGE_END ();
+      MessageWriter::Begin (MSG_BROADCAST, SVC_TEMPENTITY)
+         .Byte (TE_PLAYERDECAL)
+         .Byte (engine.IndexOfEntity (pev->pContainingEntity))
+         .Coord (trace->vecEndPos.x)
+         .Coord (trace->vecEndPos.y)
+         .Coord (trace->vecEndPos.z)
+         .Short (static_cast <short> (engine.IndexOfEntity (trace->pHit)))
+         .Byte (decalIndex)
+         .End ();
    }
    else
    {
-      MESSAGE_BEGIN (MSG_BROADCAST, SVC_TEMPENTITY);
-         WRITE_BYTE (message);
-         WRITE_COORD (trace->vecEndPos.x);
-         WRITE_COORD (trace->vecEndPos.y);
-         WRITE_COORD (trace->vecEndPos.z);
-         WRITE_BYTE (decalIndex);
+      MessageWriter msg;
+
+      msg.Begin (MSG_BROADCAST, SVC_TEMPENTITY);
+      msg.Byte (message);
+      msg.Coord (trace->vecEndPos.x);
+      msg.Coord (trace->vecEndPos.y);
+      msg.Coord (trace->vecEndPos.z);
+      msg.Byte (decalIndex);
 
       if (entityIndex)
-         WRITE_SHORT (entityIndex);
+         msg.Short (entityIndex);
 
-      MESSAGE_END();
+      msg.End();
    }
 }
 
-void FreeLibraryMemory (void)
+void FreeBotMemory (void)
 {
    // this function free's all allocated memory
    waypoints.Init (); // frees waypoint data
 
    delete [] g_experienceData;
-   g_experienceData = NULL;
+   g_experienceData = nullptr;
 }
 
 void UpdateGlobalExperienceData (void)
@@ -253,8 +230,8 @@ void UpdateGlobalExperienceData (void)
    if (g_numWaypoints < 1 || g_waypointsChanged)
       return; // no action
 
-   unsigned short maxDamage; // maximum damage
-   unsigned short actDamage; // actual damage
+   uint16 maxDamage; // maximum damage
+   uint16 actDamage; // actual damage
 
    int bestIndex; // best index to store
    bool recalcKills = false;
@@ -327,7 +304,7 @@ void UpdateGlobalExperienceData (void)
             if (clip < 0)
                clip = 0;
 
-            (g_experienceData + (i * g_numWaypoints) + j)->team0Damage = static_cast <unsigned short> (clip);
+            (g_experienceData + (i * g_numWaypoints) + j)->team0Damage = static_cast <uint16> (clip);
 
             clip = (g_experienceData + (i * g_numWaypoints) + j)->team1Damage;
             clip -= static_cast <int> (MAX_DAMAGE_VALUE * 0.5);
@@ -335,7 +312,7 @@ void UpdateGlobalExperienceData (void)
             if (clip < 0)
                clip = 0;
 
-            (g_experienceData + (i * g_numWaypoints) + j)->team1Damage = static_cast <unsigned short> (clip);
+            (g_experienceData + (i * g_numWaypoints) + j)->team1Damage = static_cast <uint16> (clip);
          }
       }
    }
@@ -359,8 +336,8 @@ void UpdateGlobalExperienceData (void)
    {
       for (int i = 0; i < g_numWaypoints; i++)
       {
-         (g_experienceData + (i * g_numWaypoints) + i)->team0Damage /= static_cast <unsigned short> (engine.MaxClients () * 0.5);
-         (g_experienceData + (i * g_numWaypoints) + i)->team1Damage /= static_cast <unsigned short> (engine.MaxClients () * 0.5);
+         (g_experienceData + (i * g_numWaypoints) + i)->team0Damage /= static_cast <uint16> (engine.MaxClients () * 0.5);
+         (g_experienceData + (i * g_numWaypoints) + i)->team1Damage /= static_cast <uint16> (engine.MaxClients () * 0.5);
       }
       g_highestKills = 1;
    }
@@ -432,8 +409,8 @@ bool IsValidPlayer (edict_t *ent)
    if (ent->v.flags & FL_PROXY)
       return false;
 
-   if ((ent->v.flags & (FL_CLIENT | FL_FAKECLIENT)) || bots.GetBot (ent) != NULL)
-      return !IsNullString (STRING (ent->v.netname));
+   if ((ent->v.flags & (FL_CLIENT | FL_FAKECLIENT)) || bots.GetBot (ent) != nullptr)
+      return !IsNullString (ValveString::Get (ent->v.netname));
 
    return false;
 }
@@ -446,12 +423,12 @@ bool IsPlayerVIP (edict_t *ent)
    if (!IsValidPlayer (ent))
       return false;
 
-   return *(INFOKEY_VALUE (GET_INFOKEYBUFFER (ent), "model")) == 'v';
+   return *(g_engfuncs.pfnInfoKeyValue (g_engfuncs.pfnGetInfoKeyBuffer (ent), "model")) == 'v';
 }
 
 bool IsValidBot (edict_t *ent)
 {
-   if (bots.GetBot (ent) != NULL || (!engine.IsNullEntity (ent) && (ent->v.flags & FL_FAKECLIENT)))
+   if (bots.GetBot (ent) != nullptr || (!engine.IsNullEntity (ent) && (ent->v.flags & FL_FAKECLIENT)))
       return true;
 
    return false;
@@ -476,10 +453,10 @@ bool OpenConfig (const char *fileName, const char *errorIfNotExists, MemoryFile 
 
       // check file existence
       int size = 0;
-      unsigned char *buffer = NULL;
+      uint8 *buffer = nullptr;
 
       // check is file is exists for this language
-      if ((buffer = MemoryFile::Loader (langConfig, &size)) != NULL)
+      if ((buffer = MemoryFile::Loader (langConfig, &size)) != nullptr)
       {
          MemoryFile::Unloader (buffer);
 
@@ -543,26 +520,26 @@ void CheckWelcomeMessage (void)
 
       engine.ChatPrintf ("----- %s v%s (Build: %u), {%s}, (c) 2016, by %s (%s)-----", PRODUCT_NAME, PRODUCT_VERSION, GenerateBuildNumber (), PRODUCT_DATE, PRODUCT_AUTHOR, PRODUCT_URL);
       
-      MESSAGE_BEGIN (MSG_ONE, SVC_TEMPENTITY, NULL, g_hostEntity);
-      WRITE_BYTE (TE_TEXTMESSAGE);
-      WRITE_BYTE (1);
-      WRITE_SHORT (FixedSigned16 (-1, 1 << 13));
-      WRITE_SHORT (FixedSigned16 (-1, 1 << 13));
-      WRITE_BYTE (2);
-      WRITE_BYTE (Random.Long (33, 255));
-      WRITE_BYTE (Random.Long (33, 255));
-      WRITE_BYTE (Random.Long (33, 255));
-      WRITE_BYTE (0);
-      WRITE_BYTE (Random.Long (230, 255));
-      WRITE_BYTE (Random.Long (230, 255));
-      WRITE_BYTE (Random.Long (230, 255));
-      WRITE_BYTE (200);
-      WRITE_SHORT (FixedUnsigned16 (0.0078125f, 1 << 8));
-      WRITE_SHORT (FixedUnsigned16 (2.0f, 1 << 8));
-      WRITE_SHORT (FixedUnsigned16 (6.0f, 1 << 8));
-      WRITE_SHORT (FixedUnsigned16 (0.1f, 1 << 8));
-      WRITE_STRING (FormatBuffer ("\nServer is running YaPB v%s (Build: %u)\nDeveloped by %s\n\n%s", PRODUCT_VERSION, GenerateBuildNumber (), PRODUCT_AUTHOR, waypoints.GetInfo ()));
-      MESSAGE_END ();
+      MessageWriter::Begin (MSG_ONE, SVC_TEMPENTITY, nullptr, g_hostEntity)
+         .Byte (TE_TEXTMESSAGE)
+         .Byte (1)
+         .Short (MessageWriter::FixedSigned16 (-1, 1 << 13))
+         .Short (MessageWriter::FixedSigned16 (-1, 1 << 13))
+         .Byte (2)
+         .Byte (Random.Long (33, 255))
+         .Byte (Random.Long (33, 255))
+         .Byte (Random.Long (33, 255))
+         .Byte (0)
+         .Byte (Random.Long (230, 255))
+         .Byte (Random.Long (230, 255))
+         .Byte (Random.Long (230, 255))
+         .Byte (200)
+         .Short (MessageWriter::FixedUnsigned16 (0.0078125f, 1 << 8))
+         .Short (MessageWriter::FixedUnsigned16 (2.0f, 1 << 8))
+         .Short (MessageWriter::FixedUnsigned16 (6.0f, 1 << 8))
+         .Short (MessageWriter::FixedUnsigned16 (0.1f, 1 << 8))
+         .Str (FormatBuffer ("\nServer is running YaPB v%s (Build: %u)\nDeveloped by %s\n\n%s", PRODUCT_VERSION, GenerateBuildNumber (), PRODUCT_AUTHOR, waypoints.GetInfo ()))
+         .End ();
 
       receiveTime = 0.0;
       alreadyReceived = true;
@@ -575,22 +552,22 @@ void DetectCSVersion (void)
       return;
 
    // detect xash engine
-   if (g_engfuncs.pfnCVarGetPointer ("build") != NULL)
+   if (g_engfuncs.pfnCVarGetPointer ("build") != nullptr)
    {
       g_gameFlags |= (GAME_LEGACY | GAME_XASH);
       return;
    }
 
    // counter-strike 1.6 or higher (plus detects for non-steam versions of 1.5)
-   byte *detection = g_engfuncs.pfnLoadFileForMe ("events/galil.sc", NULL);
+   uint8 *detection = g_engfuncs.pfnLoadFileForMe ("events/galil.sc", nullptr);
 
-   if (detection != NULL)
+   if (detection != nullptr)
       g_gameFlags |= GAME_CSTRIKE16; // just to be sure
-   else if (detection == NULL)
+   else if (detection == nullptr)
       g_gameFlags |= GAME_LEGACY; // reset it to WON
 
    // if we have loaded the file free it
-   if (detection != NULL)
+   if (detection != nullptr)
       g_engfuncs.pfnFreeFile (detection);
 }
 
@@ -660,7 +637,7 @@ void AddLogEntry (bool outputToConsole, int logLevel, const char *format, ...)
    if (logLevel == LL_FATAL)
    {
       bots.RemoveAll ();
-      FreeLibraryMemory ();
+      FreeBotMemory ();
 
 #if defined (PLATFORM_WIN32)
       DestroyWindow (GetForegroundWindow ());
@@ -683,7 +660,7 @@ bool FindNearestPlayer (void **pvHolder, edict_t *to, float searchDistance, bool
    // team, live status, search distance etc. if needBot is true, then pvHolder, will
    // be filled with bot pointer, else with edict pointer(!).
 
-   edict_t *survive = NULL; // pointer to temporally & survive entity
+   edict_t *survive = nullptr; // pointer to temporally & survive entity
    float nearestPlayer = 4096.0f; // nearest player
 
    int toTeam = engine.GetTeam (to);
@@ -895,7 +872,7 @@ int GenerateBuildNumber (void)
    const char *months[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
    // array of the month days
-   byte monthDays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+   int monthDays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
    int day = 0; // day of the year
    int year = 0; // year
@@ -973,16 +950,16 @@ int GetWeaponReturn (bool needString, const char *weaponAlias, int weaponIndex)
    // if we need to return the string, find by weapon id
    if (needString && weaponIndex != -1)
    {
-      for (int i = 0; i < ARRAYSIZE_HLSDK (weaponTab); i++)
+      for (int i = 0; i < SIZEOF_ARRAY (weaponTab); i++)
       {
          if (weaponTab[i].weaponIndex == weaponIndex) // is weapon id found?
-            return MAKE_STRING (weaponTab[i].alias);
+            return ValveString::Make (weaponTab[i].alias);
       }
-      return MAKE_STRING ("(none)"); // return none
+      return ValveString::Make ("(none)"); // return none
    }
 
    // else search weapon by name and return weapon id
-   for (int i = 0; i < ARRAYSIZE_HLSDK (weaponTab); i++)
+   for (int i = 0; i < SIZEOF_ARRAY (weaponTab); i++)
    {
       if (strncmp (weaponTab[i].alias, weaponAlias, strlen (weaponTab[i].alias)) == 0)
          return weaponTab[i].weaponIndex;

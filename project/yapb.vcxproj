@@ -15,19 +15,8 @@
     <ClInclude Include="..\include\core.h" />
     <ClInclude Include="..\include\corelib.h" />
     <ClInclude Include="..\include\engine.h" />
-    <ClInclude Include="..\include\engine\archtypes.h" />
-    <ClInclude Include="..\include\engine\const.h" />
-    <ClInclude Include="..\include\engine\dllapi.h" />
-    <ClInclude Include="..\include\engine\eiface.h" />
-    <ClInclude Include="..\include\engine\enginecallback.h" />
-    <ClInclude Include="..\include\engine\extdll.h" />
-    <ClInclude Include="..\include\engine\meta_api.h" />
-    <ClInclude Include="..\include\engine\mutil.h" />
-    <ClInclude Include="..\include\engine\plinfo.h" />
-    <ClInclude Include="..\include\engine\progdefs.h" />
-    <ClInclude Include="..\include\engine\sdk_util.h" />
-    <ClInclude Include="..\include\engine\util.h" />
     <ClInclude Include="..\include\globals.h" />
+    <ClInclude Include="..\include\goldsrc.h" />
     <ClInclude Include="..\include\platform.h" />
     <ClInclude Include="..\include\resource.h" />
   </ItemGroup>
@@ -35,6 +24,7 @@
     <ClCompile Include="..\source\basecode.cpp" />
     <ClCompile Include="..\source\combat.cpp" />
     <ClCompile Include="..\source\engine.cpp" />
+    <ClCompile Include="..\source\goldsrc.cpp" />
     <ClCompile Include="..\source\manager.cpp" />
     <ClCompile Include="..\source\chatlib.cpp" />
     <ClCompile Include="..\source\globals.cpp" />
@@ -55,14 +45,14 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v120_xp</PlatformToolset>
     <UseOfMfc>false</UseOfMfc>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v120_xp</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -112,7 +102,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>..\include\engine;..\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <PrecompiledHeader />
       <PrecompiledHeaderFile>core.h</PrecompiledHeaderFile>
@@ -184,8 +174,8 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
-      <AdditionalIncludeDirectories>..\mmgr;..\include\engine;..\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NDEBUG;WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\include\engine;..\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NDEBUG;WIN32;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>false</ExceptionHandling>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <PrecompiledHeaderFile>

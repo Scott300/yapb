@@ -14,7 +14,7 @@ ConVar yb_ignore_enemies ("yb_ignore_enemies", "0");
 ConVar yb_csdm_mode ("yb_csdm_mode", "0");
 ConVar yb_check_enemy_rendering ("yb_check_enemy_rendering", "0");
 
-ConVar mp_friendlyfire ("mp_friendlyfire", NULL, VT_NOREGISTER);
+ConVar mp_friendlyfire ("mp_friendlyfire", nullptr, VT_NOREGISTER);
 
 int Bot::GetNearbyFriendsNearPosition(const Vector &origin, float radius)
 {
@@ -89,7 +89,7 @@ bool Bot::IsEnemyHiddenByRendering (edict_t *enemy)
    return false;
 }
 
-bool Bot::CheckVisibility (edict_t *target, Vector *origin, byte *bodyPart)
+bool Bot::CheckVisibility (edict_t *target, Vector *origin, uint8 *bodyPart)
 {
    // this function checks visibility of a bot target.
 
@@ -210,7 +210,7 @@ bool Bot::LookupEnemy (void)
    if (m_enemyIgnoreTimer > engine.Time () || m_blindTime > engine.Time () || yb_ignore_enemies.GetBool ())
       return false;
 
-   edict_t *player, *newEnemy = NULL;
+   edict_t *player, *newEnemy = nullptr;
 
    float nearestDistance = m_viewDistance;
 
@@ -233,7 +233,7 @@ bool Bot::LookupEnemy (void)
       m_enemyUpdateTime = engine.Time () + 0.5f;
 
       // ignore shielded enemies, while we have real one
-      edict_t *shieldEnemy = NULL;
+      edict_t *shieldEnemy = nullptr;
 
       // setup potentially visible set for this bot
       Vector potentialVisibility = EyePosition ();
@@ -241,7 +241,7 @@ bool Bot::LookupEnemy (void)
       if (pev->flags & FL_DUCKING)
          potentialVisibility = potentialVisibility + (VEC_HULL_MIN - VEC_DUCK_HULL_MIN);
 
-      byte *pvs = ENGINE_SET_PVS (reinterpret_cast <float *> (&potentialVisibility));
+      uint8 *pvs = g_engfuncs.pfnSetFatPVS (reinterpret_cast <float *> (&potentialVisibility));
 
       // search the world for players...
       for (int i = 0; i < engine.MaxClients (); i++)
@@ -252,7 +252,7 @@ bool Bot::LookupEnemy (void)
          player = g_clients[i].ent;
 
          // let the engine check if this player is potentially visible
-         if (!ENGINE_CHECK_VISIBILITY (player, pvs))
+         if (!g_engfuncs.pfnCheckVisibility (player, pvs))
             continue;
 
          // do some blind by smoke grenade
@@ -317,7 +317,7 @@ bool Bot::LookupEnemy (void)
          if (m_seeEnemyTime + 3.0 < engine.Time () && (m_hasC4 || HasHostage () || !engine.IsNullEntity (m_targetEntity)))
             RadioMessage (Radio_EnemySpotted);
 
-         m_targetEntity = NULL; // stop following when we see an enemy...
+         m_targetEntity = nullptr; // stop following when we see an enemy...
 
          if (Random.Long (0, 100) < m_difficulty * 25)
             m_enemySurpriseTime = engine.Time () + m_actualReactionTime * 0.5f;
@@ -345,7 +345,7 @@ bool Bot::LookupEnemy (void)
 
             Bot *friendBot = bots.GetBot (g_clients[j].ent);
 
-            if (friendBot != NULL && friendBot->m_seeEnemyTime + 2.0f < engine.Time () && engine.IsNullEntity (friendBot->m_lastEnemy) && IsVisible (pev->origin, friendBot->GetEntity ()) && friendBot->IsInViewCone (pev->origin))
+            if (friendBot != nullptr && friendBot->m_seeEnemyTime + 2.0f < engine.Time () && engine.IsNullEntity (friendBot->m_lastEnemy) && IsVisible (pev->origin, friendBot->GetEntity ()) && friendBot->IsInViewCone (pev->origin))
             {
                friendBot->m_lastEnemy = newEnemy;
                friendBot->m_lastEnemyOrigin = m_lastEnemyOrigin;
@@ -364,7 +364,7 @@ bool Bot::LookupEnemy (void)
 
       if (!IsAlive (newEnemy))
       {
-         m_enemy = NULL;
+         m_enemy = nullptr;
   
          // shoot at dying players if no new enemy to give some more human-like illusion
          if (m_seeEnemyTime + 0.1f > engine.Time ())
@@ -554,7 +554,7 @@ bool Bot::IsFriendInLineOfFire (float distance)
    if (!mp_friendlyfire.GetBool () || yb_csdm_mode.GetInt () > 0)
       return false;
 
-   MakeVectors (pev->v_angle);
+   engine.MakeVectors (pev->v_angle);
 
    TraceResult tr;
    engine.TestLine (EyePosition (), EyePosition () + 10000.0f * pev->v_angle, TRACE_IGNORE_NONE, GetEntity (), &tr);
@@ -665,7 +665,7 @@ bool Bot::IsShootableThruObstacleEx (const Vector &dest)
 
       point = tr.vecEndPos + direction;
 
-      while (POINT_CONTENTS (point) == CONTENTS_SOLID && thikness < 98)
+      while (g_engfuncs.pfnPointContents (point) == CONTENTS_SOLID && thikness < 98)
       {
          point = point + direction;
          thikness++;
@@ -1101,7 +1101,7 @@ void Bot::CombatFight (void)
          if (m_strafeSetTime < engine.Time ())
          {
             // to start strafing, we have to first figure out if the target is on the left side or right side
-            MakeVectors (m_enemy->v.v_angle);
+            engine.MakeVectors (m_enemy->v.v_angle);
 
             const Vector &dirToPoint = (pev->origin - m_enemy->v.origin).Normalize2D ();
             const Vector &rightSide = g_pGlobals->v_right.Normalize2D ();
@@ -1175,7 +1175,7 @@ void Bot::CombatFight (void)
 
    if (!IsInWater () && !IsOnLadder () && (m_moveSpeed > 0.0f || m_strafeSpeed >= 0.0f))
    {
-      MakeVectors (pev->v_angle);
+      engine.MakeVectors (pev->v_angle);
 
       if (IsDeadlyDrop (pev->origin + (g_pGlobals->v_forward * m_moveSpeed * 0.2f) + (g_pGlobals->v_right * m_strafeSpeed * 0.2f) + (pev->velocity * m_frameInterval)))
       {
@@ -1206,7 +1206,7 @@ bool Bot::HasShield (void)
 {
    // this function returns true, if bot has a tactical shield
 
-   return strncmp (STRING (pev->viewmodel), "models/shield/v_shield_", 23) == 0;
+   return strncmp (ValveString::Get (pev->viewmodel), "models/shield/v_shield_", 23) == 0;
 }
 
 bool Bot::IsShieldDrawn (void)
@@ -1227,7 +1227,7 @@ bool Bot::IsEnemyProtectedByShield (edict_t *enemy)
       return false;
 
    // check if enemy has shield and this shield is drawn
-   if (strncmp (STRING (enemy->v.viewmodel), "models/shield/v_shield_", 23) == 0 && (enemy->v.weaponanim == 6 || enemy->v.weaponanim == 7))
+   if (strncmp (ValveString::Get (enemy->v.viewmodel), "models/shield/v_shield_", 23) == 0 && (enemy->v.weaponanim == 6 || enemy->v.weaponanim == 7))
    {
       if (::IsInViewCone (pev->origin, enemy))
          return true;
@@ -1542,7 +1542,7 @@ void Bot::CheckReload (void)
             break;
          }
       }
-      InternalAssert (weaponIndex);
+      BOT_ASSERT (weaponIndex);
 
       switch (weaponIndex)
       {

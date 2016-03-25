@@ -19,8 +19,6 @@ extern bool g_waypointsChanged;
 extern bool g_autoWaypoint;
 extern bool g_botsCanPause; 
 extern bool g_editNoclip;
-extern bool g_isMetamod;
-extern bool g_sendAudioFinished;
 extern bool g_isCommencing;
 extern bool g_leaderChoosen[2];
 
@@ -71,15 +69,10 @@ extern Experience *g_experienceData;
 extern edict_t *g_hostEntity; 
 extern Library *g_gameLib;
 
-extern gamefuncs_t g_functionTable;
-extern EntityAPI_t g_entityAPI;
-extern FuncPointers_t g_funcPointers;
-extern NewEntityAPI_t g_getNewEntityAPI;
-extern BlendAPI_t g_serverBlendingAPI;
 
 static inline bool IsNullString (const char *input)
 {
-   if (input == NULL)
+   if (input == nullptr)
       return true;
 
    return *input == '\0';

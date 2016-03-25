@@ -9,24 +9,9 @@
 
 #pragma once
 
-#include <extdll.h>
-#include <stdio.h>
-#include <memory.h>
-
-#include <dllapi.h>
-#include <meta_api.h>
+#include <platform.h>
 
 using namespace Math;
-
-#include "platform.h"
-
-#include <assert.h>
-#include <ctype.h>
-#include <limits.h>
-#include <float.h>
-#include <time.h>
-
-#include <corelib.h>
 
 // defines bots tasks
 enum TaskID
@@ -123,6 +108,14 @@ enum ClientFlags
    CF_USED  = (1 << 0),
    CF_ALIVE = (1 << 1),
    CF_ADMIN = (1 << 2)
+};
+
+// bot create status
+enum BotCreationResult
+{
+   BOT_RESULT_CREATED,
+   BOT_RESULT_MAX_PLAYERS_REACHED,
+   BOT_RESULT_NAV_ERROR
 };
 
 // radio messages
@@ -616,21 +609,21 @@ struct Client
 // experience data hold in memory while playing
 struct Experience
 {
-   unsigned short team0Damage;
-   unsigned short team1Damage;
-   signed short team0DangerIndex;
-   signed short team1DangerIndex;
-   signed short team0Value;
-   signed short team1Value;
+   uint16 team0Damage;
+   uint16 team1Damage;
+   int16 team0DangerIndex;
+   int16 team1DangerIndex;
+   int16 team0Value;
+   int16 team1Value;
 };
 
 // experience data when saving/loading
 struct ExperienceSave
 {
-   unsigned char team0Damage;
-   unsigned char team1Damage;
-   signed char team0Value;
-   signed char team1Value;
+   uint8 team0Damage;
+   uint8 team1Damage;
+   int8 team0Value;
+   int8 team1Value;
 };
 
 // bot creation tab
@@ -658,10 +651,10 @@ struct WeaponProperty
 // define chatting collection structure
 struct ChatCollection
 {
-   char chatProbability;
    float chatDelay;
    float timeNextChat;
    int entityIndex;
+   int chatProbability;
    char sayText[512];
    Array <String> lastUsedSentences;
 };
@@ -765,7 +758,7 @@ private:
    Path *m_currentPath; // pointer to the current path waypoint
 
    SearchPathType m_pathType; // which pathfinder to use
-   unsigned char m_visibility; // visibility flags
+   uint8 m_visibility; // visibility flags
 
    int m_currentWaypointIndex; // current waypoint index
    int m_travelStartIndex; // travel start index to double jump action
@@ -774,7 +767,7 @@ private:
    int m_loosedBombWptIndex; // nearest to loosed bomb waypoint
    int m_plantedBombWptIndex;// nearest to planted bomb waypoint
 
-   unsigned short m_currentTravelFlags; // connection flags like jumping
+   uint16 m_currentTravelFlags; // connection flags like jumping
    bool m_jumpFinished; // has bot finished jumping
    Vector m_desiredVelocity; // desired velocity for jump waypoints
    float m_navTimeset; // time waypoint chosen by Bot
@@ -929,7 +922,7 @@ private:
 
    bool IsInViewCone (const Vector &origin);
    void ReactOnSound (void);
-   bool CheckVisibility (edict_t *target, Vector *origin, byte *bodyPart);
+   bool CheckVisibility (edict_t *target, Vector *origin, uint8 *bodyPart);
    bool IsEnemyViewable (edict_t *player);
 
    edict_t *FindNearestButton (const char *className);
@@ -980,7 +973,7 @@ private:
    int GetBestSecondaryWeaponCarried (void);
 
    void RunPlayerMovement (void);
-   byte ThrottledMsec (void);
+   uint8 ThrottledMsec (void);
    void GetValidWaypoint (void);
    int ChangeWptIndex (int waypointIndex);
    bool IsDeadlyDrop (const Vector &to);
@@ -1146,7 +1139,7 @@ public:
 
    Array <TaskItem> m_tasks;
 
-   Bot (edict_t *bot, int difficulty, int personality, int team, int member, const String &steamId);
+   Bot (edict_t *bot, int difficulty, int personality, int team, int member);
   ~Bot (void);
 
    int GetAmmo (void);
@@ -1232,7 +1225,6 @@ private:
    float m_maintainTime; // time to maintain bot creation 
    float m_quotaMaintainTime; // time to maintain bot quota
    float m_grenadeUpdateTime; // time to update active grenades
-
    int m_lastWinner; // the team who won previous round
    int m_balanceCount; // limit of bots to add
 
@@ -1242,14 +1234,12 @@ private:
    Array <edict_t *> m_activeGrenades; // holds currently active grenades in the map
    Array <edict_t *> m_trackedPlayers; // holds array of connected players, and waits the player joins team
 
-   edict_t *m_killerEntity; // killer entity for bots
-
 protected:
-   int CreateBot (const String &name, int difficulty, int personality, int team, int member);
+   BotCreationResult CreateBot (const String &name, int difficulty, int personality, int team, int member);
 
 public:
    BotManager (void);
-  ~BotManager (void);
+   ~BotManager (void);
 
    bool EconomicsValid (int team) { return m_economicsGood[team]; }
 
@@ -1263,20 +1253,16 @@ public:
    Bot *GetHighestFragsBot (int team);
 
    int GetHumansNum (void);
-   int GetHumansAliveNum(void);
+   int GetHumansAliveNum (void);
    int GetHumansJoinedTeam (void);
    int GetBotsNum (void);
 
    void Think (void);
    void PeriodicThink (void);
 
-   void CreateKillerEntity (void);
-   void DestroyKillerEntity (void);
-   void TouchWithKillerEntity (Bot *bot);
-
    void Free (void);
    void Free (int index);
-  
+
    void AddRandom (void) { AddBot ("", -1, -1, -1, -1); }
    void AddBot (const String &name, int difficulty, int personality, int team, int member);
    void AddBot (const String &name, const String &difficulty, const String &personality, const String &team, const String &member);
@@ -1298,27 +1284,18 @@ public:
    void SetWeaponMode (int selection);
    void CheckTeamEconomics (int team, bool setTrue = false);
 
-   static void CallGameEntity (entvars_t *vars);
-   inline void SetDeathMsgState (bool sent)
-   {
-      m_deathMsgSent = sent;
-   }
+   inline void SetDeathMsgState (bool sent) { m_deathMsgSent = sent; }
 
    // grenades
    void UpdateActiveGrenades (void);
    const Array <edict_t *> &GetActiveGrenades (void);
-
-   inline bool HasActiveGrenades (void)
-   {
-      return !m_activeGrenades.IsEmpty ();
-   }
+   inline bool HasActiveGrenades (void) { return !m_activeGrenades.IsEmpty (); }
 
 public:
    void CalculatePingOffsets (void);
    void SendPingDataOffsets (edict_t *to);
    void SendDeathMsgFix (void);
 };
-
 
 // waypoint operation class
 class Waypoint : public Singleton <Waypoint>
@@ -1343,7 +1320,7 @@ private:
    int m_lastJumpWaypoint;
    int m_visibilityIndex;
    Vector m_lastWaypoint;
-   unsigned char m_visLUT[MAX_WAYPOINTS][MAX_WAYPOINTS / 4];
+   uint8 m_visLUT[MAX_WAYPOINTS][MAX_WAYPOINTS / 4];
 
    float m_pathDisplayTime;
    float m_arrowDisplayTime;
@@ -1442,6 +1419,24 @@ public:
 
 #include <engine.h>
 
+// listen to events gameif provides for us
+class GameEventsListener : public IGameEvents
+{
+public:
+   void OnClientConnected (edict_t *ent, const char *addr);
+   void OnClientDisconnect (edict_t *ent);
+   void OnClientUserInfoChanged (edict_t *ent, char *infobuffer);
+   void OnGameInit (void);
+   void OnEntitiesTouch (edict_t *ent1, edict_t *ent2);
+   void OnEntitySpawned (edict_t *ent);
+   void OnUpdateClientData (edict_t *ent);
+   void OnEngineFrame (bool isPost);
+   void OnServerActivated (bool isPost);
+   void OnServerDeactivated (void);
+   void OnChangeLevel (void);
+   bool OnClientCommand (edict_t *ent, const char *command, const char *arg1, const char *arg2, const char *arg3, const char *arg4, const char *arg5, const char *arg6);
+};
+
 // expose bot super-globals
 #define waypoints Waypoint::GetReference ()
 #define engine Engine::GetReference ()
@@ -1463,7 +1458,7 @@ extern bool IsPlayerVIP (edict_t *ent);
 extern bool OpenConfig (const char *fileName, const char *errorIfNotExists, MemoryFile *outFile, bool languageDependant = false);
 extern bool FindNearestPlayer (void **holder, edict_t *to, float searchDistance = 4096.0, bool sameTeam = false, bool needBot = false, bool needAlive = false, bool needDrawn = false);
 
-extern void FreeLibraryMemory (void);
+extern void FreeBotMemory (void);
 extern void RoundInit (void);
 extern void CheckWelcomeMessage (void);
 extern void DetectCSVersion (void);

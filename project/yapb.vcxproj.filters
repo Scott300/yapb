@@ -10,9 +10,6 @@
     <Filter Include="project">
       <UniqueIdentifier>{fe17a93f-cd53-4c35-b79b-969c4967865e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="include\engine">
-      <UniqueIdentifier>{f98ff5ec-055a-46cd-b5b1-462ef4c1c73e}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\compress.h">
@@ -30,47 +27,14 @@
     <ClInclude Include="..\include\resource.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\engine\const.h">
-      <Filter>include\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\engine\dllapi.h">
-      <Filter>include\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\engine\eiface.h">
-      <Filter>include\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\engine\extdll.h">
-      <Filter>include\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\engine\meta_api.h">
-      <Filter>include\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\engine\mutil.h">
-      <Filter>include\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\engine\plinfo.h">
-      <Filter>include\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\engine\progdefs.h">
-      <Filter>include\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\engine\sdk_util.h">
-      <Filter>include\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\engine\util.h">
-      <Filter>include\engine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\engine\archtypes.h">
-      <Filter>include\engine</Filter>
-    </ClInclude>
     <ClInclude Include="..\include\platform.h">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="..\include\engine.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\engine\enginecallback.h">
-      <Filter>include\engine</Filter>
+    <ClInclude Include="..\include\goldsrc.h">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -102,6 +66,9 @@
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="..\source\engine.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\goldsrc.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>
